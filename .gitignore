@@ -9,3 +9,6 @@ supabase/.temp/**
 lounge-upload.zip
 LOUNGE_CSP_SUPABASE_REQUEST.md
 out/**
+.next
+.next-dev
+.next-static

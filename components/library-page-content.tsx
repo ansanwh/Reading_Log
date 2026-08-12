@@ -5,6 +5,7 @@ import { AccountProfile } from "@/components/account-profile";
 import { AuthActions } from "@/components/auth-actions";
 import { LibraryContent, type ReadingLog } from "@/components/library-content";
 import { SiteLogo } from "@/components/site-logo";
+import { isAdminEmail } from "@/lib/admin";
 import { createClient } from "@/lib/supabase/browser";
 
 type ReadingEntryRow = {
@@ -48,6 +49,7 @@ export function LibraryPageContent() {
   const [userId, setUserId] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [readingLogs, setReadingLogs] = useState<ReadingLog[]>([]);
   const [error, setError] = useState("");
 
@@ -66,6 +68,7 @@ export function LibraryPageContent() {
       setUserId(user.id);
       setDisplayName(user.user_metadata?.name ?? user.email ?? "로그인됨");
       setEmail(user.email ?? null);
+      setIsAdmin(isAdminEmail(user.email));
       const { data, error: loadError } = await supabase
         .from("reading_logs")
         .select("id,title,total_pages,is_public,final_summary,final_review,favorite_scene,favorite_scene_image,reading_log_entries(id,entry_date,note,current_page,position)")
@@ -88,7 +91,7 @@ export function LibraryPageContent() {
       <header className="topbar">
         <SiteLogo />
         <h1 className="page-title">서재</h1>
-        {userId ? <AccountProfile displayName={displayName} email={email} /> : <AuthActions />}
+        {userId ? <AccountProfile displayName={displayName} email={email} isAdmin={isAdmin} /> : <AuthActions />}
       </header>
       {isLoading ? <main className="library-main"><p className="library-empty-state">기록을 불러오는 중입니다.</p></main> : null}
       {!isLoading && !userId ? <main className="library-main"><p className="library-empty-state">서재를 사용하려면 로그인해 주세요.</p></main> : null}

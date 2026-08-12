@@ -3,8 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -H 0.0.0.0",
-    "clean": "powershell -NoProfile -Command \"Remove-Item -Recurse -Force .next -ErrorAction SilentlyContinue\"",
+    "predev": "npm run clean:dev",
+    "dev": "next dev --turbopack -H 0.0.0.0",
+    "clean:dev": "powershell -NoProfile -Command \"Remove-Item -Recurse -Force .next,.next-dev -ErrorAction SilentlyContinue; exit 0\"",
+    "clean": "powershell -NoProfile -Command \"Remove-Item -Recurse -Force .next,.next-dev,.next-static -ErrorAction SilentlyContinue; exit 0\"",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"

@@ -1,20 +1,5 @@
-type UserLike = {
-  email?: string | null;
-};
+const ADMIN_EMAILS = new Set(["admin1@seojae.kr"]);
 
-function getAdminEmails() {
-  return (process.env.ADMIN_EMAILS ?? "")
-    .split(",")
-    .map((email) => email.trim().toLowerCase())
-    .filter(Boolean);
-}
-
-export function isAdminUser(user: UserLike | null) {
-  const email = user?.email?.trim().toLowerCase();
-
-  if (!email) {
-    return false;
-  }
-
-  return getAdminEmails().includes(email);
+export function isAdminEmail(email?: string | null) {
+  return Boolean(email && ADMIN_EMAILS.has(email.trim().toLowerCase()));
 }

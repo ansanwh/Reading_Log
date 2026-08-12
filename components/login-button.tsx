@@ -52,7 +52,6 @@ export function LoginButton({ compact = false, initialMode = "login" }: LoginBut
   const [mode, setMode] = useState<"login" | "signup">(initialMode);
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
 
   async function handlePasswordAuth(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -138,25 +137,14 @@ export function LoginButton({ compact = false, initialMode = "login" }: LoginBut
 
         <label className="field">
           <span>비밀번호</span>
-          <span className="password-input-wrap">
-            <input
-              name="password"
-              type={showPassword ? "text" : "password"}
-              required
-              minLength={6}
-              placeholder="6자 이상"
-              autoComplete={mode === "login" ? "current-password" : "new-password"}
-            />
-            <button
-              className={`password-visibility-button${showPassword ? " active" : ""}`}
-              type="button"
-              aria-label={showPassword ? "비밀번호 숨기기" : "비밀번호 보기"}
-              aria-pressed={showPassword}
-              onClick={() => setShowPassword((value) => !value)}
-            >
-              <span aria-hidden="true" />
-            </button>
-          </span>
+          <input
+            name="password"
+            type="password"
+            required
+            minLength={6}
+            placeholder="6자 이상"
+            autoComplete={mode === "login" ? "current-password" : "new-password"}
+          />
         </label>
 
         {message ? <p className="auth-message">{message}</p> : null}

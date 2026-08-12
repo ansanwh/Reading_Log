@@ -75,6 +75,13 @@ create table if not exists public.reading_logs (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  username text not null unique check (username ~ '^[a-z0-9_]{3,24}$'),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 alter table public.reading_logs
 add column if not exists is_public boolean not null default false;
 
@@ -91,6 +98,7 @@ create table if not exists public.reading_log_entries (
 
 alter table public.reading_logs enable row level security;
 alter table public.reading_log_entries enable row level security;
+alter table public.profiles enable row level security;
 
 drop policy if exists "Users can read own reading logs" on public.reading_logs;
 drop policy if exists "Users can create own reading logs" on public.reading_logs;
@@ -102,6 +110,9 @@ drop policy if exists "Users can create own reading log entries" on public.readi
 drop policy if exists "Users can update own reading log entries" on public.reading_log_entries;
 drop policy if exists "Users can delete own reading log entries" on public.reading_log_entries;
 drop policy if exists "Anyone can read entries for public reading logs" on public.reading_log_entries;
+drop policy if exists "Anyone can read public profiles" on public.profiles;
+drop policy if exists "Users can create own profile" on public.profiles;
+drop policy if exists "Users can update own profile" on public.profiles;
 
 create policy "Users can read own reading logs"
 on public.reading_logs
@@ -133,6 +144,25 @@ on public.reading_logs
 for select
 to anon, authenticated
 using (is_public = true);
+
+create policy "Anyone can read public profiles"
+on public.profiles
+for select
+to anon, authenticated
+using (true);
+
+create policy "Users can create own profile"
+on public.profiles
+for insert
+to authenticated
+with check (auth.uid() = id);
+
+create policy "Users can update own profile"
+on public.profiles
+for update
+to authenticated
+using (auth.uid() = id)
+with check (auth.uid() = id);
 
 create policy "Users can read own reading log entries"
 on public.reading_log_entries
@@ -209,6 +239,7 @@ using (
 
 drop trigger if exists reading_logs_set_updated_at on public.reading_logs;
 drop trigger if exists reading_log_entries_set_updated_at on public.reading_log_entries;
+drop trigger if exists profiles_set_updated_at on public.profiles;
 
 create trigger reading_logs_set_updated_at
 before update on public.reading_logs
@@ -217,6 +248,11 @@ execute function public.set_updated_at();
 
 create trigger reading_log_entries_set_updated_at
 before update on public.reading_log_entries
+for each row
+execute function public.set_updated_at();
+
+create trigger profiles_set_updated_at
+before update on public.profiles
 for each row
 execute function public.set_updated_at();
 
