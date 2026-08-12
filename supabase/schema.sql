@@ -223,9 +223,19 @@ execute function public.set_updated_at();
 create index if not exists reading_logs_user_id_created_at_idx
 on public.reading_logs (user_id, created_at desc);
 
-create index if not exists reading_logs_public_title_idx
-on public.reading_logs (title)
+create extension if not exists pg_trgm;
+
+create index if not exists reading_logs_public_search_idx
+on public.reading_logs
+using gin ((coalesce(title, '') || ' ' || coalesce(final_summary, '') || ' ' || coalesce(final_review, '')) gin_trgm_ops)
 where is_public = true;
+
+create index if not exists reading_logs_user_updated_at_idx
+on public.reading_logs (user_id, updated_at desc);
+
+create index if not exists reading_log_entries_note_search_idx
+on public.reading_log_entries
+using gin (note gin_trgm_ops);
 
 create index if not exists reading_log_entries_log_position_idx
 on public.reading_log_entries (reading_log_id, position);

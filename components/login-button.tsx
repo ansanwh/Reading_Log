@@ -2,8 +2,8 @@
 
 import type { FormEvent } from "react";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browser";
+import { sitePath } from "@/lib/site-path";
 
 type LoginButtonProps = {
   compact?: boolean;
@@ -49,7 +49,6 @@ function getAuthErrorMessage(message: string) {
 }
 
 export function LoginButton({ compact = false, initialMode = "login" }: LoginButtonProps) {
-  const router = useRouter();
   const [mode, setMode] = useState<"login" | "signup">(initialMode);
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -72,7 +71,7 @@ export function LoginButton({ compact = false, initialMode = "login" }: LoginBut
             email,
             password,
             options: {
-              emailRedirectTo: `${window.location.origin}/auth/callback?next=/main`,
+              emailRedirectTo: new URL(sitePath("auth/callback/"), document.baseURI).toString(),
             },
           });
 
@@ -93,18 +92,15 @@ export function LoginButton({ compact = false, initialMode = "login" }: LoginBut
       return;
     }
 
-    router.replace("/main");
-    router.refresh();
+    window.location.assign(sitePath("main/"));
   }
 
   async function loginWithKakao() {
     const supabase = createClient();
-    const origin = window.location.origin;
-
     await supabase.auth.signInWithOAuth({
       provider: "kakao",
       options: {
-        redirectTo: `${origin}/auth/callback?next=/main`,
+        redirectTo: new URL(sitePath("auth/callback/"), document.baseURI).toString(),
       },
     });
   }

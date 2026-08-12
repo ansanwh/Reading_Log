@@ -2,10 +2,10 @@
 
 import type { FormEvent } from "react";
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { createPortal } from "react-dom";
 import { LogoutButton } from "@/components/logout-button";
 import { createClient } from "@/lib/supabase/browser";
+import { sitePath } from "@/lib/site-path";
 
 type AccountProfileProps = {
   displayName: string;
@@ -134,19 +134,19 @@ export function AccountProfile({ displayName, email, isAdmin = false }: AccountP
 
               <div className="account-profile-actions">
                 <div className="account-profile-primary-actions">
-                  <Link className="button secondary" href="/library" onClick={close}>
+                  <a className="button secondary" href={sitePath("library/")} onClick={close}>
                     서재
-                  </Link>
-                  <Link className="button secondary account-main-link" href="/main" onClick={close}>
+                  </a>
+                  <a className="button secondary account-main-link" href={sitePath("main/")} onClick={close}>
                     검색
-                  </Link>
+                  </a>
                   <LogoutButton />
                 </div>
                 {isAdmin ? (
                   <div className="account-profile-admin-actions">
-                    <Link className="button secondary" href="/admin" onClick={close}>
+                    <a className="button secondary" href={sitePath("admin/")} onClick={close}>
                       관리자 페이지
-                    </Link>
+                    </a>
                   </div>
                 ) : null}
               </div>

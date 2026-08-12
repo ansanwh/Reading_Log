@@ -1,7 +1,7 @@
 "use client";
 
 import type { CSSProperties, ChangeEvent } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
 
 export type ReadingLog = {
@@ -15,6 +15,8 @@ export type ReadingLog = {
   favoriteScene: string;
   favoriteSceneImage: string;
 };
+
+type ReadingStatus = "reading" | "finished";
 
 type ReadingEntry = {
   id: string;
@@ -88,6 +90,28 @@ function hasIncreasingCurrentPages(entries: ReadingEntry[]) {
   return entries.every((entry, index) => index === 0 || entry.currentPage >= entries[index - 1].currentPage);
 }
 
+function getReadingStatus(entries: ReadingEntry[], totalPages: number): ReadingStatus {
+  const currentPage = entries.reduce((maximum, entry) => Math.max(maximum, entry.currentPage), 0);
+
+  return totalPages > 0 && currentPage >= totalPages ? "finished" : "reading";
+}
+
+function matchesSearch(log: ReadingLog, query: string) {
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+
+  if (!normalizedQuery) {
+    return true;
+  }
+
+  return [
+    log.title,
+    log.finalSummary,
+    log.finalReview,
+    log.favoriteScene,
+    ...log.entries.map((entry) => entry.note),
+  ].some((value) => value.toLocaleLowerCase().includes(normalizedQuery));
+}
+
 function resizeTextarea(textarea: HTMLTextAreaElement) {
   textarea.style.height = "auto";
   textarea.style.height = `${textarea.scrollHeight}px`;
@@ -109,16 +133,16 @@ export function LibraryContent({ initialReadingLogs = [], userId }: LibraryConte
   const [draftFavoriteScene, setDraftFavoriteScene] = useState("");
   const [draftFavoriteSceneImage, setDraftFavoriteSceneImage] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | ReadingStatus>("all");
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [pendingFocusEntryId, setPendingFocusEntryId] = useState<string | null>(null);
   const entryTextareaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
-  const supabase = useMemo(() => createClient(), []);
   const selectedLog = readingLogs.find((log) => log.id === selectedLogId);
   const normalizedSearchQuery = searchQuery.trim().toLocaleLowerCase();
-  const filteredReadingLogs = normalizedSearchQuery
-    ? readingLogs.filter((log) => log.title.toLocaleLowerCase().includes(normalizedSearchQuery))
-    : readingLogs;
+  const filteredReadingLogs = readingLogs.filter(
+    (log) => matchesSearch(log, normalizedSearchQuery) && (statusFilter === "all" || getReadingStatus(log.entries, log.totalPages) === statusFilter),
+  );
   const hasTitleChange = selectedLog ? draftTitle !== selectedLog.title : false;
   const isSelectedDraftLog = selectedLogId !== null && selectedLogId === draftLogId;
   const hasTotalPagesChange = selectedLog ? draftTotalPages !== selectedLog.totalPages : false;
@@ -151,7 +175,7 @@ export function LibraryContent({ initialReadingLogs = [], userId }: LibraryConte
   const hasDraftLog = draftLogId !== null;
   const isEditingSelectedLog = isSelectedDraftLog || (selectedLogId !== null && selectedLogId === editingLogId);
   const isWriting = hasDraftLog || isEditingSelectedLog || hasDraftChange;
-  const bookDetailStateClassName = isEditingSelectedLog ? " writing" : " completed";
+  const bookDetailStateClassName = isEditingSelectedLog ? " writing" : getReadingStatus(draftEntries, draftTotalPages) === "finished" ? " completed" : "";
 
   useEffect(() => {
     setDraftTitle(selectedLog?.title ?? "");
@@ -237,6 +261,7 @@ export function LibraryContent({ initialReadingLogs = [], userId }: LibraryConte
       favoriteScene: draftFavoriteScene,
       favoriteSceneImage: draftFavoriteSceneImage,
     };
+    const supabase = createClient();
     const { error: logError } = await supabase.from("reading_logs").upsert({
       id: nextLog.id,
       user_id: userId,
@@ -389,13 +414,23 @@ export function LibraryContent({ initialReadingLogs = [], userId }: LibraryConte
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === "string") {
-        setDraftFavoriteSceneImage(reader.result);
-      }
+    const image = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    image.onload = () => {
+      const maxDimension = 1600;
+      const scale = Math.min(1, maxDimension / Math.max(image.width, image.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(image.width * scale));
+      canvas.height = Math.max(1, Math.round(image.height * scale));
+      canvas.getContext("2d")?.drawImage(image, 0, 0, canvas.width, canvas.height);
+      setDraftFavoriteSceneImage(canvas.toDataURL("image/webp", 0.82));
+      URL.revokeObjectURL(objectUrl);
     };
-    reader.readAsDataURL(file);
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      setSaveError("이미지를 읽지 못했습니다.");
+    };
+    image.src = objectUrl;
     event.target.value = "";
   }
 
@@ -412,6 +447,7 @@ export function LibraryContent({ initialReadingLogs = [], userId }: LibraryConte
       setIsSaving(true);
       setSaveError("");
 
+      const supabase = createClient();
       const { error } = await supabase.from("reading_logs").delete().eq("id", selectedLogId);
 
       if (error) {
@@ -440,7 +476,7 @@ export function LibraryContent({ initialReadingLogs = [], userId }: LibraryConte
 
   return (
     <main className="library-main">
-      <section className="library-search" aria-label="내 독서 기록장 검색">
+      <section className="library-search" aria-label="내 독서 기록장 검색 및 상태 필터">
         <label className="main-search-label" htmlFor="library-book-search">
           내 책 검색
         </label>
@@ -449,8 +485,13 @@ export function LibraryContent({ initialReadingLogs = [], userId }: LibraryConte
           type="search"
           value={searchQuery}
           onChange={(event) => setSearchQuery(event.target.value)}
-          placeholder="내 독서 기록장 제목으로 검색"
+          placeholder="제목, 메모, 요약, 감상으로 검색"
         />
+        <select aria-label="독서 상태 필터" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as "all" | ReadingStatus)}>
+          <option value="all">전체 상태</option>
+          <option value="reading">읽는 중</option>
+          <option value="finished">완독</option>
+        </select>
       </section>
       <section className="shelf-row" aria-label="독서 기록장 목록">
         {filteredReadingLogs.map((log) => {
@@ -483,7 +524,7 @@ export function LibraryContent({ initialReadingLogs = [], userId }: LibraryConte
         </button>
       </section>
       {filteredReadingLogs.length === 0 ? (
-        <p className="library-empty-state">{normalizedSearchQuery ? "검색 결과가 없습니다." : "아직 독서 기록장이 없습니다."}</p>
+        <p className="library-empty-state">{normalizedSearchQuery || statusFilter !== "all" ? "검색 결과가 없습니다." : "아직 독서 기록장이 없습니다."}</p>
       ) : null}
 
       {selectedLog ? (

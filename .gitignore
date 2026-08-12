@@ -5,3 +5,7 @@ dist
 coverage
 *.log
 supabase/.temp/**
+.env
+lounge-upload.zip
+LOUNGE_CSP_SUPABASE_REQUEST.md
+out/**

@@ -184,6 +184,22 @@ h1 {
   justify-self: center;
 }
 
+.search-status-filter,
+.library-search select,
+.book-page-field select {
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  color: var(--ink);
+  padding: 0 10px;
+}
+
+.search-status-filter {
+  width: 100%;
+  margin-top: 6px;
+}
+
 .main-search-label {
   position: absolute;
   width: 1px;
@@ -237,6 +253,9 @@ h1 {
 }
 
 .library-search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
   margin-bottom: 12px;
 }
 
@@ -289,6 +308,7 @@ h1 {
 }
 
 .public-search-result {
+  width: 100%;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -296,7 +316,44 @@ h1 {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface-strong);
+  color: var(--ink);
+  cursor: pointer;
   padding: 16px;
+}
+
+.public-search-result:hover,
+.public-search-result:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(47, 111, 94, 0.14);
+  outline: none;
+}
+
+.public-search-result > span:first-child {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  text-align: left;
+}
+
+.public-search-result strong {
+  font-size: 17px;
+}
+
+.public-search-result > span:first-child > span:last-child {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.search-result-status {
+  width: fit-content;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--accent-dark);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 7px;
 }
 
 .public-search-result h2 {
@@ -316,6 +373,61 @@ h1 {
   flex: 0 0 auto;
   margin-top: 2px;
   text-align: right;
+}
+
+.public-log-detail {
+  display: grid;
+  gap: 12px;
+  margin-top: 22px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 20px;
+}
+
+.public-log-detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 14px;
+}
+
+.public-log-detail-head h2,
+.public-log-detail-head p,
+.public-log-entry h3,
+.public-log-entry p {
+  margin: 0;
+}
+
+.public-log-detail-head h2 {
+  font-size: 24px;
+}
+
+.public-log-detail-head > div > p:last-child,
+.public-log-entry p {
+  color: var(--muted);
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
+.public-log-entry {
+  display: grid;
+  gap: 7px;
+  border-bottom: 1px solid var(--line);
+  padding: 0 0 12px;
+}
+
+.public-log-entry h3 {
+  font-size: 14px;
+}
+
+.public-log-image {
+  max-width: min(100%, 640px);
+  max-height: 420px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
 }
 
 .shelf-row {
@@ -527,7 +639,8 @@ h1 {
 }
 
 .book-date-field input,
-.book-page-field input {
+.book-page-field input,
+.book-page-field select {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface-strong);
@@ -542,7 +655,8 @@ h1 {
 }
 
 .book-date-field input:disabled,
-.book-page-field input:disabled {
+.book-page-field input:disabled,
+.book-page-field select:disabled {
   cursor: not-allowed;
   opacity: 0.68;
 }
@@ -1468,11 +1582,22 @@ h1 {
     text-align: left;
   }
 
+  .public-log-detail {
+    padding: 14px;
+  }
+
+  .public-log-detail-head {
+    display: grid;
+  }
+
   .library-search {
+    grid-template-columns: 1fr;
     margin-bottom: 8px;
   }
 
-  .library-search input {
+  .library-search input,
+  .library-search select,
+  .search-status-filter {
     min-height: 36px;
   }
 
