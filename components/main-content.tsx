@@ -42,13 +42,22 @@ export function MainContent() {
     const supabase = createClient();
     let isActive = true;
 
-    void supabase.auth.getUser().then(({ data: { user } }) => {
-      if (isActive && user) {
-        setUserName(user.user_metadata?.name ?? user.email ?? "로그인됨");
-        setUserEmail(user.email ?? null);
-        setIsAdmin(isAdminEmail(user.email));
-      }
-    });
+    void (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!isActive || !user) return;
+
+      const isGlobalAdmin = isAdminEmail(user.email);
+      const { count: classAdminCount } = await supabase
+        .from("group_members")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("role", "group_admin");
+      if (!isActive) return;
+
+      setUserName(user.user_metadata?.name ?? user.email ?? "로그인됨");
+      setUserEmail(user.email ?? null);
+      setIsAdmin(isGlobalAdmin || Boolean(classAdminCount));
+    })();
 
     return () => {
       isActive = false;
@@ -171,7 +180,7 @@ export function MainContent() {
                 >
                   <span>
                     <strong>{log.title}</strong>
-                    <span className="search-result-author">작성자 {authorIds[log.user_id] ?? "미설정"}</span>
+                    <span className="search-result-author">작성자 {authorIds[log.user_id] ?? "익명"}</span>
                     <span className="search-result-status">{getReadingStatus(log)}</span>
                     {log.final_summary ? <span>{log.final_summary}</span> : null}
                   </span>

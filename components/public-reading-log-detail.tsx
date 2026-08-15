@@ -46,7 +46,7 @@ export function PublicReadingLogDetail({ log, authorId }: PublicReadingLogDetail
         <div>
           <p className="eyebrow">공개 독서 기록</p>
           <h2>{log.title}</h2>
-          <p>{authorId ? `작성자 ${authorId} · ` : ""}{getReadingStatus(log)} · 읽은 쪽수 {currentPage} / {log.total_pages} ({progress}%)</p>
+          <p>작성자 {authorId ?? "익명"} · {getReadingStatus(log)} · 읽은 쪽수 {currentPage} / {log.total_pages} ({progress}%)</p>
         </div>
       </div>
       {entries.map((entry) => <article className="public-log-entry" key={entry.id}><h3>{entry.entry_date} · {entry.current_page}쪽</h3><p>{entry.note || "기록 없음"}</p></article>)}

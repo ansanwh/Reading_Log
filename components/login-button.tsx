@@ -49,14 +49,16 @@ function getAuthErrorMessage(message: string) {
 }
 
 export function LoginButton({ compact = false, initialMode = "login" }: LoginButtonProps) {
-  const [mode, setMode] = useState<"login" | "signup">(initialMode);
+  const [mode, setMode] = useState<"login" | "signup" | "code">(initialMode);
   const [message, setMessage] = useState("");
+  const [isMessagePositive, setIsMessagePositive] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   async function handlePasswordAuth(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setIsLoading(true);
     setMessage("");
+    setIsMessagePositive(false);
 
     const formData = new FormData(event.currentTarget);
     const email = String(formData.get("email") ?? "").trim();
@@ -83,6 +85,7 @@ export function LoginButton({ compact = false, initialMode = "login" }: LoginBut
 
     if (mode === "signup") {
       setMessage("가입이 완료되었습니다. 이메일 확인이 필요한 경우 메일함을 확인해 주세요.");
+      setIsMessagePositive(true);
       return;
     }
 
@@ -104,6 +107,29 @@ export function LoginButton({ compact = false, initialMode = "login" }: LoginBut
     });
   }
 
+  async function loginWithCode(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setIsLoading(true);
+    setMessage("");
+    const formData = new FormData(event.currentTarget);
+    const groupName = String(formData.get("group-name") ?? "");
+    const code = String(formData.get("temporary-code") ?? "");
+    const response = await fetch(sitePath("api/code-login/"), { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ groupName, code }) });
+    const result = await response.json() as { tokenHash?: string; message?: string };
+    if (!response.ok || !result.tokenHash) {
+      setIsLoading(false);
+      setMessage(result.message ?? "코드로 로그인하지 못했습니다.");
+      return;
+    }
+    const { error } = await createClient().auth.verifyOtp({ token_hash: result.tokenHash, type: "magiclink" });
+    setIsLoading(false);
+    if (error) {
+      setMessage("코드 로그인 세션을 만들지 못했습니다.");
+      return;
+    }
+    window.location.assign(sitePath("main/"));
+  }
+
   return (
     <div className={compact ? "auth-box auth-box-compact" : "auth-box"}>
       <div className="auth-tabs" aria-label="인증 방식">
@@ -113,6 +139,7 @@ export function LoginButton({ compact = false, initialMode = "login" }: LoginBut
           onClick={() => {
             setMode("login");
             setMessage("");
+            setIsMessagePositive(false);
           }}
         >
           로그인
@@ -123,13 +150,36 @@ export function LoginButton({ compact = false, initialMode = "login" }: LoginBut
           onClick={() => {
             setMode("signup");
             setMessage("");
+            setIsMessagePositive(false);
           }}
         >
           회원가입
         </button>
+        <button
+          className={mode === "code" ? "active" : ""}
+          type="button"
+          onClick={() => {
+            setMode("code");
+            setMessage("");
+            setIsMessagePositive(false);
+          }}
+        >
+          코드로 로그인
+        </button>
       </div>
 
-      <form className="form auth-form" onSubmit={handlePasswordAuth}>
+      {mode === "code" ? <form className="form auth-form" onSubmit={loginWithCode}>
+        <label className="field">
+          <span>그룹명</span>
+          <input name="group-name" required placeholder="예: 1학년 3반" autoComplete="organization" />
+        </label>
+        <label className="field">
+          <span>임시 계정 코드</span>
+          <input name="temporary-code" required inputMode="numeric" pattern="\d{1,5}" maxLength={5} placeholder="숫자 5자리 이하" autoComplete="one-time-code" />
+        </label>
+        {message ? <p className="auth-message">{message}</p> : null}
+        <button className="button" type="submit" disabled={isLoading}>{isLoading ? "처리 중..." : "코드로 로그인"}</button>
+      </form> : <form className="form auth-form" onSubmit={handlePasswordAuth}>
         <label className="field">
           <span>아이디</span>
           <input name="email" type="email" required placeholder="you@example.com" autoComplete="email" />
@@ -147,20 +197,20 @@ export function LoginButton({ compact = false, initialMode = "login" }: LoginBut
           />
         </label>
 
-        {message ? <p className="auth-message">{message}</p> : null}
+        {message ? <p className={`auth-message${isMessagePositive ? " success" : ""}`}>{message}</p> : null}
 
         <button className="button" type="submit" disabled={isLoading}>
           {isLoading ? "처리 중..." : mode === "login" ? "로그인" : "회원가입"}
         </button>
-      </form>
+      </form>}
 
-      <div className="auth-divider">
+      {mode !== "code" ? <><div className="auth-divider">
         <span>또는</span>
       </div>
 
       <button className="button kakao" type="button" onClick={loginWithKakao}>
         카카오로 로그인
-      </button>
+      </button></> : null}
     </div>
   );
 }

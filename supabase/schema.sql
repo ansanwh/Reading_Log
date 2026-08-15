@@ -54,6 +54,16 @@ begin
 end;
 $$;
 
+create or replace function public.is_super_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select lower(coalesce(auth.jwt() ->> 'email', '')) = 'admin1@seojae.kr';
+$$;
+
 drop trigger if exists reading_entries_set_updated_at on public.reading_entries;
 
 create trigger reading_entries_set_updated_at
@@ -77,13 +87,38 @@ create table if not exists public.reading_logs (
 
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
-  username text not null unique check (username ~ '^[a-z0-9_]{3,24}$'),
+  username text not null check (username ~ '^[가-힣a-zA-Z0-9_]{2,24}$'),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
+alter table public.profiles drop constraint if exists profiles_username_check;
+alter table public.profiles add constraint profiles_username_check
+check (username ~ '^[가-힣a-zA-Z0-9_]{2,24}$');
+alter table public.profiles drop constraint if exists profiles_username_key;
+create unique index if not exists profiles_username_unique_lower_idx
+on public.profiles ((lower(username)));
+
+create table if not exists public.classrooms (
+  id uuid primary key default gen_random_uuid(),
+  name text not null unique check (char_length(trim(name)) between 1 and 80),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.classroom_members (
+  classroom_id uuid not null references public.classrooms(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  role text not null default 'member' check (role in ('member', 'class_admin')),
+  created_at timestamptz not null default now(),
+  primary key (classroom_id, user_id)
+);
+
 alter table public.reading_logs
 add column if not exists is_public boolean not null default false;
+
+alter table public.reading_logs
+add column if not exists classroom_id uuid references public.classrooms(id) on delete set null;
 
 create table if not exists public.reading_log_entries (
   id uuid primary key default gen_random_uuid(),
@@ -99,20 +134,35 @@ create table if not exists public.reading_log_entries (
 alter table public.reading_logs enable row level security;
 alter table public.reading_log_entries enable row level security;
 alter table public.profiles enable row level security;
+alter table public.classrooms enable row level security;
+alter table public.classroom_members enable row level security;
 
 drop policy if exists "Users can read own reading logs" on public.reading_logs;
 drop policy if exists "Users can create own reading logs" on public.reading_logs;
 drop policy if exists "Users can update own reading logs" on public.reading_logs;
 drop policy if exists "Users can delete own reading logs" on public.reading_logs;
 drop policy if exists "Anyone can read public reading logs" on public.reading_logs;
+drop policy if exists "Class administrators can read classroom reading logs" on public.reading_logs;
+drop policy if exists "Class administrators can update classroom reading logs" on public.reading_logs;
+drop policy if exists "Class administrators can delete classroom reading logs" on public.reading_logs;
+drop policy if exists "Super administrator can manage all reading logs" on public.reading_logs;
 drop policy if exists "Users can read own reading log entries" on public.reading_log_entries;
 drop policy if exists "Users can create own reading log entries" on public.reading_log_entries;
 drop policy if exists "Users can update own reading log entries" on public.reading_log_entries;
 drop policy if exists "Users can delete own reading log entries" on public.reading_log_entries;
 drop policy if exists "Anyone can read entries for public reading logs" on public.reading_log_entries;
+drop policy if exists "Class administrators can read classroom reading log entries" on public.reading_log_entries;
+drop policy if exists "Class administrators can update classroom reading log entries" on public.reading_log_entries;
+drop policy if exists "Class administrators can delete classroom reading log entries" on public.reading_log_entries;
+drop policy if exists "Super administrator can manage all reading log entries" on public.reading_log_entries;
 drop policy if exists "Anyone can read public profiles" on public.profiles;
 drop policy if exists "Users can create own profile" on public.profiles;
 drop policy if exists "Users can update own profile" on public.profiles;
+drop policy if exists "Users can delete own profile" on public.profiles;
+drop policy if exists "Users can read own classrooms" on public.classrooms;
+drop policy if exists "Super administrator can manage all classrooms" on public.classrooms;
+drop policy if exists "Users can read own classroom memberships" on public.classroom_members;
+drop policy if exists "Super administrator can manage all classroom memberships" on public.classroom_members;
 
 create policy "Users can read own reading logs"
 on public.reading_logs
@@ -124,14 +174,36 @@ create policy "Users can create own reading logs"
 on public.reading_logs
 for insert
 to authenticated
-with check (auth.uid() = user_id);
+with check (
+  auth.uid() = user_id
+  and (
+    classroom_id is null
+    or exists (
+      select 1
+      from public.classroom_members
+      where classroom_members.classroom_id = reading_logs.classroom_id
+        and classroom_members.user_id = auth.uid()
+    )
+  )
+);
 
 create policy "Users can update own reading logs"
 on public.reading_logs
 for update
 to authenticated
 using (auth.uid() = user_id)
-with check (auth.uid() = user_id);
+with check (
+  auth.uid() = user_id
+  and (
+    classroom_id is null
+    or exists (
+      select 1
+      from public.classroom_members
+      where classroom_members.classroom_id = reading_logs.classroom_id
+        and classroom_members.user_id = auth.uid()
+    )
+  )
+);
 
 create policy "Users can delete own reading logs"
 on public.reading_logs
@@ -144,6 +216,64 @@ on public.reading_logs
 for select
 to anon, authenticated
 using (is_public = true);
+
+create policy "Class administrators can read classroom reading logs"
+on public.reading_logs
+for select
+to authenticated
+using (
+  exists (
+    select 1
+    from public.classroom_members
+    where classroom_members.classroom_id = reading_logs.classroom_id
+      and classroom_members.user_id = auth.uid()
+      and classroom_members.role = 'class_admin'
+  )
+);
+
+create policy "Class administrators can update classroom reading logs"
+on public.reading_logs
+for update
+to authenticated
+using (
+  exists (
+    select 1
+    from public.classroom_members
+    where classroom_members.classroom_id = reading_logs.classroom_id
+      and classroom_members.user_id = auth.uid()
+      and classroom_members.role = 'class_admin'
+  )
+)
+with check (
+  exists (
+    select 1
+    from public.classroom_members
+    where classroom_members.classroom_id = reading_logs.classroom_id
+      and classroom_members.user_id = auth.uid()
+      and classroom_members.role = 'class_admin'
+  )
+);
+
+create policy "Class administrators can delete classroom reading logs"
+on public.reading_logs
+for delete
+to authenticated
+using (
+  exists (
+    select 1
+    from public.classroom_members
+    where classroom_members.classroom_id = reading_logs.classroom_id
+      and classroom_members.user_id = auth.uid()
+      and classroom_members.role = 'class_admin'
+  )
+);
+
+create policy "Super administrator can manage all reading logs"
+on public.reading_logs
+for all
+to authenticated
+using (public.is_super_admin())
+with check (public.is_super_admin());
 
 create policy "Anyone can read public profiles"
 on public.profiles
@@ -163,6 +293,45 @@ for update
 to authenticated
 using (auth.uid() = id)
 with check (auth.uid() = id);
+
+create policy "Users can delete own profile"
+on public.profiles
+for delete
+to authenticated
+using (auth.uid() = id);
+
+create policy "Users can read own classrooms"
+on public.classrooms
+for select
+to authenticated
+using (
+  exists (
+    select 1
+    from public.classroom_members
+    where classroom_members.classroom_id = classrooms.id
+      and classroom_members.user_id = auth.uid()
+  )
+);
+
+create policy "Users can read own classroom memberships"
+on public.classroom_members
+for select
+to authenticated
+using (auth.uid() = user_id);
+
+create policy "Super administrator can manage all classrooms"
+on public.classrooms
+for all
+to authenticated
+using (public.is_super_admin())
+with check (public.is_super_admin());
+
+create policy "Super administrator can manage all classroom memberships"
+on public.classroom_members
+for all
+to authenticated
+using (public.is_super_admin())
+with check (public.is_super_admin());
 
 create policy "Users can read own reading log entries"
 on public.reading_log_entries
@@ -187,6 +356,21 @@ using (
     from public.reading_logs
     where reading_logs.id = reading_log_entries.reading_log_id
       and reading_logs.is_public = true
+  )
+);
+
+create policy "Class administrators can read classroom reading log entries"
+on public.reading_log_entries
+for select
+to authenticated
+using (
+  exists (
+    select 1
+    from public.reading_logs
+    join public.classroom_members on classroom_members.classroom_id = reading_logs.classroom_id
+    where reading_logs.id = reading_log_entries.reading_log_id
+      and classroom_members.user_id = auth.uid()
+      and classroom_members.role = 'class_admin'
   )
 );
 
@@ -237,6 +421,53 @@ using (
   )
 );
 
+create policy "Class administrators can update classroom reading log entries"
+on public.reading_log_entries
+for update
+to authenticated
+using (
+  exists (
+    select 1
+    from public.reading_logs
+    join public.classroom_members on classroom_members.classroom_id = reading_logs.classroom_id
+    where reading_logs.id = reading_log_entries.reading_log_id
+      and classroom_members.user_id = auth.uid()
+      and classroom_members.role = 'class_admin'
+  )
+)
+with check (
+  exists (
+    select 1
+    from public.reading_logs
+    join public.classroom_members on classroom_members.classroom_id = reading_logs.classroom_id
+    where reading_logs.id = reading_log_entries.reading_log_id
+      and classroom_members.user_id = auth.uid()
+      and classroom_members.role = 'class_admin'
+  )
+);
+
+create policy "Class administrators can delete classroom reading log entries"
+on public.reading_log_entries
+for delete
+to authenticated
+using (
+  exists (
+    select 1
+    from public.reading_logs
+    join public.classroom_members on classroom_members.classroom_id = reading_logs.classroom_id
+    where reading_logs.id = reading_log_entries.reading_log_id
+      and classroom_members.user_id = auth.uid()
+      and classroom_members.role = 'class_admin'
+  )
+);
+
+create policy "Super administrator can manage all reading log entries"
+on public.reading_log_entries
+for all
+to authenticated
+using (public.is_super_admin())
+with check (public.is_super_admin());
+
 drop trigger if exists reading_logs_set_updated_at on public.reading_logs;
 drop trigger if exists reading_log_entries_set_updated_at on public.reading_log_entries;
 drop trigger if exists profiles_set_updated_at on public.profiles;
@@ -256,6 +487,13 @@ before update on public.profiles
 for each row
 execute function public.set_updated_at();
 
+drop trigger if exists classrooms_set_updated_at on public.classrooms;
+
+create trigger classrooms_set_updated_at
+before update on public.classrooms
+for each row
+execute function public.set_updated_at();
+
 create index if not exists reading_logs_user_id_created_at_idx
 on public.reading_logs (user_id, created_at desc);
 
@@ -268,6 +506,12 @@ where is_public = true;
 
 create index if not exists reading_logs_user_updated_at_idx
 on public.reading_logs (user_id, updated_at desc);
+
+create index if not exists reading_logs_classroom_id_idx
+on public.reading_logs (classroom_id, updated_at desc);
+
+create index if not exists classroom_members_user_id_idx
+on public.classroom_members (user_id, role);
 
 create index if not exists reading_log_entries_note_search_idx
 on public.reading_log_entries

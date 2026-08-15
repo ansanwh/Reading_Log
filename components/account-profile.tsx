@@ -38,6 +38,7 @@ function getPasswordChangeErrorMessage(message: string) {
 export function AccountProfile({ displayName, email, isAdmin = false }: AccountProfileProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  const [openSetting, setOpenSetting] = useState<"public-id" | "password" | null>(null);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [passwordMessage, setPasswordMessage] = useState("");
   const [publicId, setPublicId] = useState("");
@@ -93,16 +94,18 @@ export function AccountProfile({ displayName, email, isAdmin = false }: AccountP
 
   function close() {
     setIsOpen(false);
+    setOpenSetting(null);
     setPasswordMessage("");
     setPublicIdMessage("");
   }
 
   async function savePublicId(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const username = publicIdDraft.trim().toLowerCase();
+    const draftUsername = publicIdDraft.trim().normalize("NFC");
+    const username = draftUsername === "익명" ? "" : draftUsername;
 
-    if (!/^[a-z0-9_]{3,24}$/.test(username)) {
-      setPublicIdMessage("공개 ID는 영문 소문자, 숫자, 밑줄 3~24자로 입력해 주세요.");
+    if (username && !/^[가-힣a-zA-Z0-9_]{2,24}$/.test(username)) {
+      setPublicIdMessage("공개 ID는 한글, 영문, 숫자, 밑줄 2~24자로 입력해 주세요.");
       return;
     }
 
@@ -118,7 +121,9 @@ export function AccountProfile({ displayName, email, isAdmin = false }: AccountP
       return;
     }
 
-    const { error } = await supabase.from("profiles").upsert({ id: user.id, username });
+    const { error } = username
+      ? await supabase.from("profiles").upsert({ id: user.id, username })
+      : await supabase.from("profiles").delete().eq("id", user.id);
     setIsSavingPublicId(false);
     if (error) {
       setPublicIdMessage(error.code === "23505" ? "이미 사용 중인 공개 ID입니다." : "공개 ID를 저장하지 못했습니다. 데이터베이스 설정을 확인해 주세요.");
@@ -127,7 +132,7 @@ export function AccountProfile({ displayName, email, isAdmin = false }: AccountP
 
     setPublicId(username);
     setPublicIdDraft(username);
-    setPublicIdMessage("공개 ID가 저장되었습니다.");
+    setPublicIdMessage(username ? "공개 ID가 저장되었습니다." : "공개 ID를 익명으로 변경했습니다.");
   }
 
   async function changePassword(event: FormEvent<HTMLFormElement>) {
@@ -188,29 +193,10 @@ export function AccountProfile({ displayName, email, isAdmin = false }: AccountP
                 <div className="account-profile-info">
                   <strong>{displayName}</strong>
                   {email ? <span>{email}</span> : null}
-                  {publicId ? <span>공개 ID @{publicId}</span> : null}
+                  <span>공개 ID {publicId || "익명"}</span>
                   {isAdmin ? <span className="admin-badge">관리자</span> : null}
                 </div>
               </div>
-
-              <form className="account-public-id-form" onSubmit={savePublicId}>
-                <label className="field">
-                  <span>공개 ID</span>
-                  <input
-                    value={publicIdDraft}
-                    onChange={(event) => setPublicIdDraft(event.target.value)}
-                    placeholder="예: reading_albert"
-                    minLength={3}
-                    maxLength={24}
-                    autoComplete="nickname"
-                  />
-                </label>
-                <p className="account-public-id-help">공개 검색 결과에 작성자로 표시됩니다.</p>
-                {publicIdMessage ? <p className="auth-message">{publicIdMessage}</p> : null}
-                <button className="button secondary" type="submit" disabled={isSavingPublicId}>
-                  {isSavingPublicId ? "저장 중..." : "공개 ID 저장"}
-                </button>
-              </form>
 
               <div className="account-profile-actions">
                 <div className="account-profile-primary-actions">
@@ -231,37 +217,67 @@ export function AccountProfile({ displayName, email, isAdmin = false }: AccountP
                 ) : null}
               </div>
 
-              <form className="account-password-form" onSubmit={changePassword}>
-                <label className="field">
-                  <span>새 비밀번호</span>
-                  <input
-                    name="new-password"
-                    type="password"
-                    minLength={6}
-                    required
-                    autoComplete="new-password"
-                    placeholder="6자 이상"
-                  />
-                </label>
-
-                <label className="field">
-                  <span>새 비밀번호 확인</span>
-                  <input
-                    name="confirm-password"
-                    type="password"
-                    minLength={6}
-                    required
-                    autoComplete="new-password"
-                    placeholder="새 비밀번호 다시 입력"
-                  />
-                </label>
-
-                {passwordMessage ? <p className="auth-message">{passwordMessage}</p> : null}
-
-                <button className="button secondary" type="submit" disabled={isChangingPassword}>
-                  {isChangingPassword ? "변경 중..." : "비밀번호 변경"}
+              <div className="account-setting-actions" aria-label="계정 설정">
+                <button
+                  className="button secondary"
+                  type="button"
+                  aria-expanded={openSetting === "public-id"}
+                  aria-controls="public-id-setting"
+                  onClick={() => setOpenSetting((current) => (current === "public-id" ? null : "public-id"))}
+                >
+                  공개 ID 설정
                 </button>
-              </form>
+                <button
+                  className="button secondary"
+                  type="button"
+                  aria-expanded={openSetting === "password"}
+                  aria-controls="password-setting"
+                  onClick={() => setOpenSetting((current) => (current === "password" ? null : "password"))}
+                >
+                  비밀번호 변경
+                </button>
+              </div>
+
+              {openSetting === "public-id" ? (
+                <form id="public-id-setting" className="account-public-id-form account-setting-detail" onSubmit={savePublicId}>
+                  <label className="field">
+                    <span>공개 ID</span>
+                    <input
+                      value={publicIdDraft}
+                      onChange={(event) => setPublicIdDraft(event.target.value)}
+                      placeholder="미설정 시 익명"
+                      minLength={2}
+                      maxLength={24}
+                      autoComplete="nickname"
+                    />
+                  </label>
+                  <p className="account-public-id-help">공개 검색 결과에 작성자로 표시됩니다. “익명”을 입력하거나 비워두고 저장하면 익명으로 표시됩니다.</p>
+                  {publicIdMessage ? <p className={`auth-message${publicIdMessage.includes("저장되었습니다") || publicIdMessage.includes("익명으로 변경") ? " success" : ""}`}>{publicIdMessage}</p> : null}
+                  <button className="button secondary" type="submit" disabled={isSavingPublicId}>
+                    {isSavingPublicId ? "저장 중..." : "공개 ID 저장"}
+                  </button>
+                </form>
+              ) : null}
+
+              {openSetting === "password" ? (
+                <form id="password-setting" className="account-password-form account-setting-detail" onSubmit={changePassword}>
+                  <label className="field">
+                    <span>새 비밀번호</span>
+                    <input name="new-password" type="password" minLength={6} required autoComplete="new-password" placeholder="6자 이상" />
+                  </label>
+
+                  <label className="field">
+                    <span>새 비밀번호 확인</span>
+                    <input name="confirm-password" type="password" minLength={6} required autoComplete="new-password" placeholder="새 비밀번호 다시 입력" />
+                  </label>
+
+                  {passwordMessage ? <p className={`auth-message${passwordMessage === "비밀번호가 변경되었습니다." ? " success" : ""}`}>{passwordMessage}</p> : null}
+
+                  <button className="button secondary" type="submit" disabled={isChangingPassword}>
+                    {isChangingPassword ? "변경 중..." : "비밀번호 변경"}
+                  </button>
+                </form>
+              ) : null}
             </div>
           </div>,
           document.body,

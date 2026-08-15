@@ -961,7 +961,7 @@ h1 {
 
 .auth-tabs {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 4px;
   padding: 4px;
   border: 1px solid var(--line);
@@ -1001,6 +1001,10 @@ h1 {
   color: var(--rose);
   font-size: 13px;
   line-height: 1.5;
+}
+
+.auth-message.success {
+  color: var(--accent);
 }
 
 .auth-divider {
@@ -1364,13 +1368,24 @@ h1 {
 .account-password-form {
   display: grid;
   gap: 10px;
-  border-top: 1px solid var(--line);
-  padding-top: 14px;
 }
 
 .account-public-id-form {
   display: grid;
   gap: 8px;
+}
+
+.account-setting-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.account-setting-actions .button {
+  min-width: 0;
+}
+
+.account-setting-detail {
   border-top: 1px solid var(--line);
   padding-top: 14px;
 }
@@ -1487,6 +1502,25 @@ h1 {
   line-height: 1.7;
 }
 
+.admin-actions {
+  margin-top: 14px;
+}
+
+.admin-actions .form {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: end;
+}
+
+.admin-actions .auth-message {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 700px) {
+  .admin-actions .form {
+    grid-template-columns: 1fr;
+  }
+}
+
 .admin-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1514,6 +1548,45 @@ h1 {
   margin: 0;
   color: var(--muted);
   line-height: 1.6;
+}
+
+.admin-card-button {
+  width: 100%;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.admin-card-button:hover,
+.admin-card-button[aria-expanded="true"] {
+  border-color: var(--accent);
+  background: var(--surface);
+}
+
+.admin-user-list {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-user-row {
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 10px 12px;
+}
+
+.admin-user-row span {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.admin-user-row small {
+  color: var(--muted);
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 820px) {

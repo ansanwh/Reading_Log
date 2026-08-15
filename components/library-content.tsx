@@ -9,6 +9,7 @@ export type ReadingLog = {
   title: string;
   totalPages: number;
   isPublic: boolean;
+  groupId: string | null;
   entries: ReadingEntry[];
   finalSummary: string;
   finalReview: string;
@@ -28,6 +29,12 @@ type ReadingEntry = {
 type LibraryContentProps = {
   initialReadingLogs?: ReadingLog[];
   userId: string;
+  groups?: Group[];
+};
+
+export type Group = {
+  id: string;
+  name: string;
 };
 
 function getTodayDateInputValue() {
@@ -117,7 +124,7 @@ function resizeTextarea(textarea: HTMLTextAreaElement) {
   textarea.style.height = `${textarea.scrollHeight}px`;
 }
 
-export function LibraryContent({ initialReadingLogs = [], userId }: LibraryContentProps) {
+export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }: LibraryContentProps) {
   const [readingLogs, setReadingLogs] = useState<ReadingLog[]>(initialReadingLogs);
   const [selectedLogId, setSelectedLogId] = useState<string | null>(initialReadingLogs[0]?.id ?? null);
   const [draftLogId, setDraftLogId] = useState<string | null>(null);
@@ -126,6 +133,7 @@ export function LibraryContent({ initialReadingLogs = [], userId }: LibraryConte
   const [draftTotalPages, setDraftTotalPages] = useState(300);
   const [draftTotalPagesInput, setDraftTotalPagesInput] = useState("300");
   const [draftIsPublic, setDraftIsPublic] = useState(false);
+  const [draftGroupId, setDraftGroupId] = useState<string | null>(null);
   const [draftEntries, setDraftEntries] = useState<ReadingEntry[]>([]);
   const [draftCurrentPageInputs, setDraftCurrentPageInputs] = useState<Record<string, string>>({});
   const [draftFinalSummary, setDraftFinalSummary] = useState("");
@@ -152,7 +160,8 @@ export function LibraryContent({ initialReadingLogs = [], userId }: LibraryConte
       draftFinalReview !== selectedLog.finalReview ||
       draftFavoriteScene !== selectedLog.favoriteScene ||
       draftFavoriteSceneImage !== selectedLog.favoriteSceneImage ||
-      draftIsPublic !== selectedLog.isPublic
+       draftIsPublic !== selectedLog.isPublic ||
+       draftGroupId !== selectedLog.groupId
     : false;
   const hasDraftChange = hasTitleChange || hasTotalPagesChange || hasEntriesChange || hasFinalChange;
   const hasValidTotalPages = draftTotalPages > 0;
@@ -181,7 +190,8 @@ export function LibraryContent({ initialReadingLogs = [], userId }: LibraryConte
     setDraftTitle(selectedLog?.title ?? "");
     setDraftTotalPages(selectedLog?.totalPages ?? 300);
     setDraftTotalPagesInput(String(selectedLog?.totalPages ?? 300));
-    setDraftIsPublic(selectedLog?.isPublic ?? false);
+    setDraftIsPublic(groups.length === 0 && (selectedLog?.isPublic ?? false));
+    setDraftGroupId(selectedLog?.groupId ?? groups[0]?.id ?? null);
     const selectedEntries = selectedLog?.entries ?? [];
     setDraftEntries(selectedEntries);
     setDraftCurrentPageInputs(getCurrentPageInputValues(selectedEntries));
@@ -189,7 +199,7 @@ export function LibraryContent({ initialReadingLogs = [], userId }: LibraryConte
     setDraftFinalReview(selectedLog?.finalReview ?? "");
     setDraftFavoriteScene(selectedLog?.favoriteScene ?? "");
     setDraftFavoriteSceneImage(selectedLog?.favoriteSceneImage ?? "");
-  }, [selectedLog, selectedLogId]);
+  }, [selectedLog, selectedLogId, groups]);
 
   useEffect(() => {
     document.querySelectorAll<HTMLTextAreaElement>(".book-detail textarea, .book-final-section textarea").forEach(resizeTextarea);
@@ -219,6 +229,7 @@ export function LibraryContent({ initialReadingLogs = [], userId }: LibraryConte
       title: "",
       totalPages: 300,
       isPublic: false,
+      groupId: groups[0]?.id ?? null,
       finalSummary: "",
       finalReview: "",
       favoriteScene: "",
@@ -255,6 +266,7 @@ export function LibraryContent({ initialReadingLogs = [], userId }: LibraryConte
       title: draftTitle,
       totalPages: draftTotalPages,
       isPublic: draftIsPublic,
+      groupId: draftGroupId,
       entries: draftEntries,
       finalSummary: draftFinalSummary,
       finalReview: draftFinalReview,
@@ -267,7 +279,8 @@ export function LibraryContent({ initialReadingLogs = [], userId }: LibraryConte
       user_id: userId,
       title: nextLog.title,
       total_pages: nextLog.totalPages,
-      is_public: nextLog.isPublic,
+        is_public: nextLog.isPublic,
+        group_id: nextLog.groupId,
       final_summary: nextLog.finalSummary,
       final_review: nextLog.finalReview,
       favorite_scene: nextLog.favoriteScene,
@@ -375,6 +388,7 @@ export function LibraryContent({ initialReadingLogs = [], userId }: LibraryConte
       setDraftTotalPages(300);
       setDraftTotalPagesInput("300");
       setDraftIsPublic(false);
+      setDraftGroupId(null);
       setDraftEntries([]);
       setDraftCurrentPageInputs({});
       setDraftFinalSummary("");
@@ -388,6 +402,7 @@ export function LibraryContent({ initialReadingLogs = [], userId }: LibraryConte
     setDraftTotalPages(selectedLog.totalPages);
     setDraftTotalPagesInput(String(selectedLog.totalPages));
     setDraftIsPublic(selectedLog.isPublic);
+    setDraftGroupId(selectedLog.groupId);
     setDraftEntries(selectedLog.entries);
     setDraftCurrentPageInputs(getCurrentPageInputValues(selectedLog.entries));
     setDraftFinalSummary(selectedLog.finalSummary);
@@ -465,6 +480,7 @@ export function LibraryContent({ initialReadingLogs = [], userId }: LibraryConte
     setDraftTotalPages(300);
     setDraftTotalPagesInput("300");
     setDraftIsPublic(false);
+    setDraftGroupId(null);
     setDraftEntries([]);
     setDraftCurrentPageInputs({});
     setDraftFinalSummary("");
@@ -548,12 +564,25 @@ export function LibraryContent({ initialReadingLogs = [], userId }: LibraryConte
           <label className="public-toggle">
             <input
               type="checkbox"
-              checked={draftIsPublic}
-              disabled={!isEditingSelectedLog}
+              checked={groups.length > 0 ? false : draftIsPublic}
+              disabled={!isEditingSelectedLog || groups.length > 0}
               onChange={(event) => setDraftIsPublic(event.target.checked)}
             />
-            <span>검색에 공개</span>
+            <span>{groups.length > 0 ? "그룹 기록은 그룹방에만 표시" : "검색에 공개"}</span>
           </label>
+          {groups.length > 0 ? (
+            <label className="public-toggle">
+              <span>그룹</span>
+              <select
+                aria-label="그룹 선택"
+                value={draftGroupId ?? ""}
+                disabled={!isEditingSelectedLog}
+                onChange={(event) => setDraftGroupId(event.target.value || null)}
+              >
+                {groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
+              </select>
+            </label>
+          ) : null}
           {saveError ? <p className="library-error-state">{saveError}</p> : null}
           <section className={`book-detail${bookDetailStateClassName}`} aria-label="선택한 독서 기록장">
             <div className="book-title-bar">
