@@ -20,6 +20,7 @@ type ReadingEntryRow = {
 type ReadingLogRow = {
   id: string;
   title: string;
+  genre?: string | null;
   total_pages: number;
   is_public: boolean;
   group_id?: string | null;
@@ -34,6 +35,7 @@ function mapReadingLog(log: ReadingLogRow): ReadingLog {
   return {
     id: log.id,
     title: log.title,
+    genre: log.genre ?? "",
     totalPages: log.total_pages,
     isPublic: log.is_public,
     groupId: log.group_id ?? null,
@@ -75,7 +77,7 @@ export function LibraryPageContent() {
       const isGlobalAdmin = isAdminEmail(user.email);
       const readingLogsQuery = () => supabase
         .from("reading_logs")
-        .select("id,title,total_pages,is_public,group_id,final_summary,final_review,favorite_scene,favorite_scene_image,reading_log_entries(id,entry_date,note,current_page,position)")
+        .select("id,title,genre,total_pages,is_public,group_id,final_summary,final_review,favorite_scene,favorite_scene_image,reading_log_entries(id,entry_date,note,current_page,position)")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
       const readingLogsResult = await readingLogsQuery();

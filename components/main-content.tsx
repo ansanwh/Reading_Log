@@ -8,8 +8,6 @@ import { SiteLogo } from "@/components/site-logo";
 import { isAdminEmail } from "@/lib/admin";
 import { createClient } from "@/lib/supabase/browser";
 
-type ReadingStatus = "reading" | "finished";
-
 function getSearchTerm(value: string) {
   return value.trim().replace(/[,%_()]/g, " ");
 }
@@ -17,7 +15,9 @@ function getSearchTerm(value: string) {
 export function MainContent() {
   const [searchQuery, setSearchQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | ReadingStatus>("all");
+  const [excludeTitle, setExcludeTitle] = useState(false);
+  const [excludeGenre, setExcludeGenre] = useState(false);
+  const [excludeAuthor, setExcludeAuthor] = useState(false);
   const [readingLogs, setReadingLogs] = useState<PublicReadingLog[]>([]);
   const [selectedLog, setSelectedLog] = useState<PublicReadingLog | null>(null);
   const [authorIds, setAuthorIds] = useState<Record<string, string>>({});
@@ -30,12 +30,8 @@ export function MainContent() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const query = params.get("q")?.trim() ?? "";
-    const status = params.get("status");
     setSearchQuery(query);
     setSubmittedQuery(query);
-    if (status === "reading" || status === "finished") {
-      setStatusFilter(status);
-    }
   }, []);
 
   useEffect(() => {
@@ -80,7 +76,7 @@ export function MainContent() {
       if (!searchTerm) {
         const { data, error } = await createPublicLogsQuery();
         if (!isActive) return;
-        const logs = ((data ?? []) as PublicReadingLog[]).filter((log) => statusFilter === "all" || (getReadingStatus(log) === "완독" ? "finished" : "reading") === statusFilter);
+        const logs = (data ?? []) as PublicReadingLog[];
         setReadingLogs(logs);
         await loadAuthorIds(logs);
         setLoadError(error ? "공개 독서 기록장을 불러오지 못했습니다." : "");
@@ -89,29 +85,31 @@ export function MainContent() {
       }
 
       const pattern = `%${searchTerm}%`;
-      const [logMatches, entryMatches] = await Promise.all([
-        createPublicLogsQuery().or(`title.ilike.${pattern},final_summary.ilike.${pattern},final_review.ilike.${pattern},favorite_scene.ilike.${pattern}`),
-        supabase.from("reading_log_entries").select("reading_log_id").ilike("note", pattern),
-      ]);
-      const matchingEntryLogIds = [...new Set((entryMatches.data ?? []).map((entry) => entry.reading_log_id))];
-      const entryLogMatches = matchingEntryLogIds.length > 0
-        ? await createPublicLogsQuery().in("id", matchingEntryLogIds)
+      const searchableLogFields = [!excludeTitle ? `title.ilike.${pattern}` : "", !excludeGenre ? `genre.ilike.${pattern}` : ""].filter(Boolean);
+      const logMatches = searchableLogFields.length > 0
+        ? await createPublicLogsQuery().or(searchableLogFields.join(","))
+        : { data: [], error: null };
+      const authorMatches = !excludeAuthor
+        ? await supabase.from("profiles").select("id").ilike("username", pattern)
+        : { data: [], error: null };
+      const matchingAuthorIds = [...new Set((authorMatches.data ?? []).map((profile) => profile.id))];
+      const authorLogMatches = matchingAuthorIds.length > 0
+        ? await createPublicLogsQuery().in("user_id", matchingAuthorIds)
         : { data: [], error: null };
 
       if (!isActive) return;
-      const combinedLogs = [...(logMatches.data ?? []), ...(entryLogMatches.data ?? [])] as PublicReadingLog[];
+      const combinedLogs = [...(logMatches.data ?? []), ...(authorLogMatches.data ?? [])] as PublicReadingLog[];
       const uniqueLogs = [...new Map(combinedLogs.map((log) => [log.id, log])).values()];
-      const logs = uniqueLogs.filter((log) => statusFilter === "all" || (getReadingStatus(log) === "완독" ? "finished" : "reading") === statusFilter);
-      setReadingLogs(logs);
-      await loadAuthorIds(logs);
-      setLoadError(logMatches.error || entryMatches.error || entryLogMatches.error ? "검색 결과를 불러오지 못했습니다." : "");
+      setReadingLogs(uniqueLogs);
+      await loadAuthorIds(uniqueLogs);
+      setLoadError(logMatches.error || authorMatches.error || authorLogMatches.error ? "검색 결과를 불러오지 못했습니다." : "");
       setIsLoading(false);
     })();
 
     return () => {
       isActive = false;
     };
-  }, [submittedQuery, statusFilter]);
+  }, [submittedQuery, excludeTitle, excludeGenre, excludeAuthor]);
 
   async function loadAuthorIds(logs: PublicReadingLog[]) {
     const userIds = [...new Set(logs.map((log) => log.user_id))];
@@ -130,15 +128,9 @@ export function MainContent() {
     const url = new URL(window.location.href);
     if (nextQuery) url.searchParams.set("q", nextQuery);
     else url.searchParams.delete("q");
-    if (statusFilter === "all") url.searchParams.delete("status");
-    else url.searchParams.set("status", statusFilter);
+    url.searchParams.delete("status");
     window.history.replaceState(null, "", url);
     setSubmittedQuery(nextQuery);
-    setSelectedLog(null);
-  }
-
-  function changeStatusFilter(nextStatus: "all" | ReadingStatus) {
-    setStatusFilter(nextStatus);
     setSelectedLog(null);
   }
 
@@ -150,14 +142,17 @@ export function MainContent() {
         <form className="main-search" role="search" onSubmit={submitSearch}>
           <label className="main-search-label" htmlFor="main-book-search">공개 독서 기록장 검색</label>
           <div className="main-search-row">
-            <input id="main-book-search" name="q" type="search" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="제목, 메모, 요약, 감상으로 검색" />
+            <input id="main-book-search" name="q" type="search" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="제목, 장르, 작성자로 검색" />
             <button className="button" type="submit">검색</button>
           </div>
-          <select className="search-status-filter" aria-label="공개 독서 기록 상태 필터" value={statusFilter} onChange={(event) => changeStatusFilter(event.target.value as "all" | ReadingStatus)}>
-            <option value="all">전체 상태</option>
-            <option value="reading">읽는 중</option>
-            <option value="finished">완독</option>
-          </select>
+          <details className="advanced-search">
+            <summary>상세 검색</summary>
+            <div className="advanced-search-options">
+              <label><input type="checkbox" checked={excludeTitle} onChange={(event) => { setExcludeTitle(event.target.checked); setSelectedLog(null); }} /> 제목 제외</label>
+              <label><input type="checkbox" checked={excludeGenre} onChange={(event) => { setExcludeGenre(event.target.checked); setSelectedLog(null); }} /> 장르 제외</label>
+              <label><input type="checkbox" checked={excludeAuthor} onChange={(event) => { setExcludeAuthor(event.target.checked); setSelectedLog(null); }} /> 작성자 제외</label>
+            </div>
+          </details>
         </form>
         {userName ? <AccountProfile displayName={userName} email={userEmail} isAdmin={isAdmin} /> : <AuthActions />}
       </header>
@@ -181,6 +176,7 @@ export function MainContent() {
                   <span>
                     <strong>{log.title}</strong>
                     <span className="search-result-author">작성자 {authorIds[log.user_id] ?? "익명"}</span>
+                    {log.genre ? <span className="search-result-author">장르 {log.genre}</span> : null}
                     <span className="search-result-status">{getReadingStatus(log)}</span>
                     {log.final_summary ? <span>{log.final_summary}</span> : null}
                   </span>
@@ -190,7 +186,7 @@ export function MainContent() {
               </div>
             );
           })}
-          {!isLoading && !loadError && readingLogs.length === 0 ? <p className="library-empty-state">{submittedQuery || statusFilter !== "all" ? "검색 결과가 없습니다." : "공개된 독서 기록장이 아직 없습니다."}</p> : null}
+          {!isLoading && !loadError && readingLogs.length === 0 ? <p className="library-empty-state">{submittedQuery ? "검색 결과가 없습니다." : "공개된 독서 기록장이 아직 없습니다."}</p> : null}
         </section>
 
       </main>

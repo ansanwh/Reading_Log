@@ -10,6 +10,7 @@ export type PublicReadingLog = {
   id: string;
   user_id: string;
   title: string;
+  genre: string;
   total_pages: number;
   final_summary: string | null;
   final_review: string | null;
@@ -18,7 +19,7 @@ export type PublicReadingLog = {
   reading_log_entries: PublicReadingEntry[] | null;
 };
 
-export const publicReadingLogSelect = "id,user_id,title,total_pages,final_summary,final_review,favorite_scene,favorite_scene_image,reading_log_entries(id,entry_date,note,current_page,position)";
+export const publicReadingLogSelect = "id,user_id,title,genre,total_pages,final_summary,final_review,favorite_scene,favorite_scene_image,reading_log_entries(id,entry_date,note,current_page,position)";
 
 export function getReadingProgress(currentPage: number, totalPages: number) {
   return totalPages > 0 ? Math.min(100, Math.max(0, Math.round((currentPage / totalPages) * 100))) : 0;
@@ -46,7 +47,7 @@ export function PublicReadingLogDetail({ log, authorId }: PublicReadingLogDetail
         <div>
           <p className="eyebrow">공개 독서 기록</p>
           <h2>{log.title}</h2>
-          <p>작성자 {authorId ?? "익명"} · {getReadingStatus(log)} · 읽은 쪽수 {currentPage} / {log.total_pages} ({progress}%)</p>
+          <p>작성자 {authorId ?? "익명"} · 장르 {log.genre || "미지정"} · {getReadingStatus(log)} · 읽은 쪽수 {currentPage} / {log.total_pages} ({progress}%)</p>
         </div>
       </div>
       {entries.map((entry) => <article className="public-log-entry" key={entry.id}><h3>{entry.entry_date} · {entry.current_page}쪽</h3><p>{entry.note || "기록 없음"}</p></article>)}

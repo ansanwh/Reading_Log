@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/browser";
 export type ReadingLog = {
   id: string;
   title: string;
+  genre: string;
   totalPages: number;
   isPublic: boolean;
   groupId: string | null;
@@ -89,6 +90,14 @@ function parsePageValue(value: string) {
   return Math.max(0, Number.parseInt(value, 10) || 0);
 }
 
+function parseGenres(value: string) {
+  return value.split(",").map((genre) => genre.trim()).filter(Boolean);
+}
+
+function normalizeGenres(value: string) {
+  return parseGenres(value).join(", ");
+}
+
 function getCurrentPageInputValues(entries: ReadingEntry[]) {
   return Object.fromEntries(entries.map((entry) => [entry.id, String(entry.currentPage)]));
 }
@@ -112,10 +121,7 @@ function matchesSearch(log: ReadingLog, query: string) {
 
   return [
     log.title,
-    log.finalSummary,
-    log.finalReview,
-    log.favoriteScene,
-    ...log.entries.map((entry) => entry.note),
+    log.genre,
   ].some((value) => value.toLocaleLowerCase().includes(normalizedQuery));
 }
 
@@ -130,6 +136,7 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
   const [draftLogId, setDraftLogId] = useState<string | null>(null);
   const [editingLogId, setEditingLogId] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState("");
+  const [draftGenre, setDraftGenre] = useState("");
   const [draftTotalPages, setDraftTotalPages] = useState(300);
   const [draftTotalPagesInput, setDraftTotalPagesInput] = useState("300");
   const [draftIsPublic, setDraftIsPublic] = useState(false);
@@ -141,17 +148,15 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
   const [draftFavoriteScene, setDraftFavoriteScene] = useState("");
   const [draftFavoriteSceneImage, setDraftFavoriteSceneImage] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | ReadingStatus>("all");
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [pendingFocusEntryId, setPendingFocusEntryId] = useState<string | null>(null);
   const entryTextareaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
   const selectedLog = readingLogs.find((log) => log.id === selectedLogId);
   const normalizedSearchQuery = searchQuery.trim().toLocaleLowerCase();
-  const filteredReadingLogs = readingLogs.filter(
-    (log) => matchesSearch(log, normalizedSearchQuery) && (statusFilter === "all" || getReadingStatus(log.entries, log.totalPages) === statusFilter),
-  );
+  const filteredReadingLogs = readingLogs.filter((log) => matchesSearch(log, normalizedSearchQuery));
   const hasTitleChange = selectedLog ? draftTitle !== selectedLog.title : false;
+  const hasGenreChange = selectedLog ? draftGenre !== selectedLog.genre : false;
   const isSelectedDraftLog = selectedLogId !== null && selectedLogId === draftLogId;
   const hasTotalPagesChange = selectedLog ? draftTotalPages !== selectedLog.totalPages : false;
   const hasEntriesChange = selectedLog ? JSON.stringify(draftEntries) !== JSON.stringify(selectedLog.entries) : false;
@@ -163,8 +168,9 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
        draftIsPublic !== selectedLog.isPublic ||
        draftGroupId !== selectedLog.groupId
     : false;
-  const hasDraftChange = hasTitleChange || hasTotalPagesChange || hasEntriesChange || hasFinalChange;
+  const hasDraftChange = hasTitleChange || hasGenreChange || hasTotalPagesChange || hasEntriesChange || hasFinalChange;
   const hasValidTotalPages = draftTotalPages > 0;
+  const hasValidGenres = parseGenres(draftGenre).length <= 5;
   const hasValidCurrentPages = hasIncreasingCurrentPages(draftEntries);
   const hasRequiredBookInfo = draftTitle.trim().length > 0 && hasValidTotalPages;
   const hasAnyFinalContent =
@@ -178,6 +184,7 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
     !isSaving &&
     hasDraftChange &&
     hasValidTotalPages &&
+    hasValidGenres &&
     hasValidCurrentPages &&
     hasRequiredFinalContent &&
     (!isSelectedDraftLog || hasRequiredBookInfo);
@@ -188,6 +195,7 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
 
   useEffect(() => {
     setDraftTitle(selectedLog?.title ?? "");
+    setDraftGenre(selectedLog?.genre ?? "");
     setDraftTotalPages(selectedLog?.totalPages ?? 300);
     setDraftTotalPagesInput(String(selectedLog?.totalPages ?? 300));
     setDraftIsPublic(groups.length === 0 && (selectedLog?.isPublic ?? false));
@@ -227,6 +235,7 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
     const newLog = {
       id: createUuid(),
       title: "",
+      genre: "",
       totalPages: 300,
       isPublic: false,
       groupId: groups[0]?.id ?? null,
@@ -264,6 +273,7 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
     const nextLog = {
       id: selectedLogId,
       title: draftTitle,
+      genre: normalizeGenres(draftGenre),
       totalPages: draftTotalPages,
       isPublic: draftIsPublic,
       groupId: draftGroupId,
@@ -278,6 +288,7 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
       id: nextLog.id,
       user_id: userId,
       title: nextLog.title,
+      genre: nextLog.genre,
       total_pages: nextLog.totalPages,
         is_public: nextLog.isPublic,
         group_id: nextLog.groupId,
@@ -385,6 +396,7 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
       setDraftLogId(null);
       setEditingLogId(null);
       setDraftTitle("");
+      setDraftGenre("");
       setDraftTotalPages(300);
       setDraftTotalPagesInput("300");
       setDraftIsPublic(false);
@@ -399,6 +411,7 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
     }
 
     setDraftTitle(selectedLog.title);
+    setDraftGenre(selectedLog.genre);
     setDraftTotalPages(selectedLog.totalPages);
     setDraftTotalPagesInput(String(selectedLog.totalPages));
     setDraftIsPublic(selectedLog.isPublic);
@@ -477,6 +490,7 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
     setEditingLogId((id) => (id === selectedLogId ? null : id));
     setSelectedLogId(null);
     setDraftTitle("");
+    setDraftGenre("");
     setDraftTotalPages(300);
     setDraftTotalPagesInput("300");
     setDraftIsPublic(false);
@@ -501,13 +515,8 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
           type="search"
           value={searchQuery}
           onChange={(event) => setSearchQuery(event.target.value)}
-          placeholder="제목, 메모, 요약, 감상으로 검색"
+          placeholder="제목, 장르로 검색"
         />
-        <select aria-label="독서 상태 필터" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as "all" | ReadingStatus)}>
-          <option value="all">전체 상태</option>
-          <option value="reading">읽는 중</option>
-          <option value="finished">완독</option>
-        </select>
       </section>
       <section className="shelf-row" aria-label="독서 기록장 목록">
         {filteredReadingLogs.map((log) => {
@@ -540,7 +549,7 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
         </button>
       </section>
       {filteredReadingLogs.length === 0 ? (
-        <p className="library-empty-state">{normalizedSearchQuery || statusFilter !== "all" ? "검색 결과가 없습니다." : "아직 독서 기록장이 없습니다."}</p>
+        <p className="library-empty-state">{normalizedSearchQuery ? "검색 결과가 없습니다." : "아직 독서 기록장이 없습니다."}</p>
       ) : null}
 
       {selectedLog ? (
@@ -597,6 +606,18 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
                 삭제
               </button>
             </div>
+            <label className="book-genre-row">
+              <span>장르</span>
+              <input
+                aria-label="책 장르"
+                value={draftGenre}
+                onChange={(event) => setDraftGenre(event.target.value)}
+                placeholder="예: 소설, 에세이"
+                maxLength={100}
+                readOnly={!isEditingSelectedLog}
+              />
+              <small className={hasValidGenres ? "book-genre-help" : "book-genre-help error"}>쉼표로 구분해 최대 5개까지 입력할 수 있습니다.</small>
+            </label>
             {draftEntries.map((entry, index) => (
               <section className="book-entry" aria-label="날짜별 독서 기록" key={entry.id}>
                 <div className="book-meta-row">

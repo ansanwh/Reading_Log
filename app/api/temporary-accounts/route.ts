@@ -8,12 +8,12 @@ const hashCode = (code: string) => createHash("sha256").update(code).digest("hex
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  const { groupId, code, years = 1 } = await request.json() as { groupId?: string; code?: string; years?: number };
-  const normalizedCode = code?.trim();
-  if (!groupId || !normalizedCode || !/^\d{1,5}$/.test(normalizedCode)) return NextResponse.json({ message: "그룹과 5자리 이하 숫자 코드를 입력해 주세요." }, { status: 400 });
   const sessionClient = await createClient();
   const { data: { user } } = await sessionClient.auth.getUser();
   if (!user) return NextResponse.json({ message: "로그인이 필요합니다." }, { status: 401 });
+  const { groupId, code, years = 1 } = await request.json() as { groupId?: string; code?: string; years?: number };
+  const normalizedCode = code?.trim();
+  if (!groupId || !normalizedCode || !/^\d{1,5}$/.test(normalizedCode)) return NextResponse.json({ message: "그룹과 5자리 이하 숫자 코드를 입력해 주세요." }, { status: 400 });
   const admin = createAdminClient();
   const { data: membership } = await admin.from("group_members").select("role").eq("group_id", groupId).eq("user_id", user.id).maybeSingle();
   if (!isSuperAdminEmail(user.email) && membership?.role !== "group_admin") return NextResponse.json({ message: "이 그룹의 임시 계정을 만들 권한이 없습니다." }, { status: 403 });

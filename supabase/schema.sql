@@ -75,6 +75,11 @@ create table if not exists public.reading_logs (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   title text not null,
+  genre text not null default '' check (
+    char_length(genre) <= 100
+    and cardinality(regexp_split_to_array(genre, ',')) <= 5
+    and genre !~ '(^[[:space:]]*,|,[[:space:]]*$|,[[:space:]]*,)'
+  ),
   total_pages integer not null default 300 check (total_pages > 0),
   final_summary text not null default '',
   final_review text not null default '',
@@ -501,7 +506,7 @@ create extension if not exists pg_trgm;
 
 create index if not exists reading_logs_public_search_idx
 on public.reading_logs
-using gin ((coalesce(title, '') || ' ' || coalesce(final_summary, '') || ' ' || coalesce(final_review, '')) gin_trgm_ops)
+using gin ((coalesce(title, '') || ' ' || coalesce(genre, '')) gin_trgm_ops)
 where is_public = true;
 
 create index if not exists reading_logs_user_updated_at_idx

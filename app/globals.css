@@ -200,6 +200,61 @@ h1 {
   margin-top: 6px;
 }
 
+.advanced-search {
+  position: relative;
+  margin-top: 6px;
+}
+
+.advanced-search summary {
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  list-style: none;
+  padding: 0 12px;
+}
+
+.advanced-search summary::-webkit-details-marker {
+  display: none;
+}
+
+.advanced-search[open] summary {
+  border-color: var(--accent);
+}
+
+.advanced-search-options {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-top: 0;
+  border-radius: 0 0 8px 8px;
+  background: var(--surface-strong);
+}
+
+.advanced-search-options label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.advanced-search-options input {
+  accent-color: var(--accent);
+}
+
 .main-search-label {
   position: absolute;
   width: 1px;
@@ -254,7 +309,7 @@ h1 {
 
 .library-search {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
   margin-bottom: 12px;
 }
@@ -601,7 +656,47 @@ h1 {
   padding: 0;
 }
 
+.book-genre-row {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 18px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.book-genre-row input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  color: var(--ink);
+  min-height: 30px;
+  padding: 0 8px;
+  font-size: 13px;
+}
+
+.book-genre-help {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.book-genre-help.error {
+  color: var(--rose);
+  font-weight: 700;
+}
+
+.book-genre-row input:read-only {
+  border-color: transparent;
+  background: transparent;
+}
+
 .book-detail.writing .book-title-bar input,
+.book-detail.writing .book-genre-row input,
 .book-detail.writing .book-meta-row,
 .book-detail.writing .book-date-field input,
 .book-detail.writing .book-page-field input,
@@ -610,6 +705,7 @@ h1 {
 }
 
 .book-detail.completed .book-title-bar input,
+.book-detail.completed .book-genre-row input,
 .book-detail.completed .book-meta-row,
 .book-detail.completed .book-date-field input,
 .book-detail.completed .book-page-field input,
@@ -1555,12 +1651,29 @@ h1 {
   color: inherit;
   cursor: pointer;
   text-align: left;
+  transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease, transform 80ms ease;
 }
 
 .admin-card-button:hover,
 .admin-card-button[aria-expanded="true"] {
   border-color: var(--accent);
   background: var(--surface);
+}
+
+.admin-main button:not(:disabled) {
+  cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease, filter 140ms ease, box-shadow 140ms ease, transform 80ms ease;
+}
+
+.admin-main button:not(:disabled):active {
+  box-shadow: none;
+  filter: brightness(0.94);
+  transform: translateY(2px);
+}
+
+.admin-card-button:not(:disabled):active {
+  background: var(--surface);
+  border-color: var(--accent);
 }
 
 .admin-user-list {
