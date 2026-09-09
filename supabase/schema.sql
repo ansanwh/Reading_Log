@@ -83,6 +83,7 @@ create table if not exists public.reading_logs (
   total_pages integer not null default 300 check (total_pages > 0),
   final_summary text not null default '',
   final_review text not null default '',
+  final_rating integer check (final_rating between 1 and 5),
   favorite_scene text not null default '',
   favorite_scene_image text not null default '',
   is_public boolean not null default false,

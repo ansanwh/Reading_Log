@@ -896,6 +896,63 @@ h1 {
   color: rgba(112, 104, 95, 0.72);
 }
 
+.final-rating {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 52px;
+  padding: 8px 18px;
+}
+
+.final-rating-star {
+  width: 32px;
+  height: 32px;
+  border: 0;
+  background: transparent;
+  color: var(--line);
+  cursor: pointer;
+  font-size: 27px;
+  line-height: 1;
+  padding: 0;
+}
+
+.final-rating-star.selected {
+  color: #d39b20;
+}
+
+.final-rating-star:disabled {
+  cursor: default;
+}
+
+.final-rating-star:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.final-rating-clear {
+  margin-left: 8px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.public-log-rating {
+  color: #d39b20;
+  font-size: 20px;
+  letter-spacing: 1px;
+}
+
+.public-log-rating span {
+  color: var(--muted);
+  font-size: 13px;
+  letter-spacing: 0;
+  margin-left: 6px;
+}
+
 .book-final-field .book-image-upload {
   min-height: auto;
   display: flex;
@@ -1950,6 +2007,11 @@ h1 {
     min-height: 72px;
     line-height: 36px;
     padding: 0 12px 10px;
+  }
+
+  .final-rating {
+    min-height: 46px;
+    padding: 7px 12px;
   }
 
   .book-final-field .book-image-upload {

@@ -26,6 +26,7 @@ type ReadingLogRow = {
   group_id?: string | null;
   final_summary: string | null;
   final_review: string | null;
+  final_rating?: number | null;
   favorite_scene: string | null;
   favorite_scene_image: string | null;
   reading_log_entries: ReadingEntryRow[] | null;
@@ -41,6 +42,7 @@ function mapReadingLog(log: ReadingLogRow): ReadingLog {
     groupId: log.group_id ?? null,
     finalSummary: log.final_summary ?? "",
     finalReview: log.final_review ?? "",
+    finalRating: log.final_rating ?? null,
     favoriteScene: log.favorite_scene ?? "",
     favoriteSceneImage: log.favorite_scene_image ?? "",
     entries: [...(log.reading_log_entries ?? [])]
@@ -77,7 +79,7 @@ export function LibraryPageContent() {
       const isGlobalAdmin = isAdminEmail(user.email);
       const readingLogsQuery = () => supabase
         .from("reading_logs")
-        .select("id,title,genre,total_pages,is_public,group_id,final_summary,final_review,favorite_scene,favorite_scene_image,reading_log_entries(id,entry_date,note,current_page,position)")
+        .select("id,title,genre,total_pages,is_public,group_id,final_summary,final_review,final_rating,favorite_scene,favorite_scene_image,reading_log_entries(id,entry_date,note,current_page,position)")
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
       const readingLogsResult = await readingLogsQuery();

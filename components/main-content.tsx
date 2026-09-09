@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { AccountProfile } from "@/components/account-profile";
 import { AuthActions } from "@/components/auth-actions";
-import { getReadingProgress, getReadingStatus, PublicReadingLogDetail, publicReadingLogSelect, type PublicReadingLog } from "@/components/public-reading-log-detail";
+import { getReadingProgress, getReadingStatus, legacyPublicReadingLogSelect, PublicReadingLogDetail, publicReadingLogSelect, type PublicReadingLog } from "@/components/public-reading-log-detail";
 import { SiteLogo } from "@/components/site-logo";
 import { isAdminEmail } from "@/lib/admin";
 import { createClient } from "@/lib/supabase/browser";
@@ -68,15 +68,18 @@ export function MainContent() {
     setLoadError("");
 
     void (async () => {
+      const { error: ratingColumnError } = await supabase.from("reading_logs").select("final_rating").limit(1);
+      const selectFields = ratingColumnError?.code === "42703" ? legacyPublicReadingLogSelect : publicReadingLogSelect;
+
       const createPublicLogsQuery = () => {
-        let query = supabase.from("reading_logs").select(publicReadingLogSelect).eq("is_public", true).order("updated_at", { ascending: false });
+        let query = supabase.from("reading_logs").select(selectFields).eq("is_public", true).order("updated_at", { ascending: false });
         return query;
       };
 
       if (!searchTerm) {
         const { data, error } = await createPublicLogsQuery();
         if (!isActive) return;
-        const logs = (data ?? []) as PublicReadingLog[];
+        const logs = (data ?? []) as unknown as PublicReadingLog[];
         setReadingLogs(logs);
         await loadAuthorIds(logs);
         setLoadError(error ? "공개 독서 기록장을 불러오지 못했습니다." : "");
@@ -98,7 +101,7 @@ export function MainContent() {
         : { data: [], error: null };
 
       if (!isActive) return;
-      const combinedLogs = [...(logMatches.data ?? []), ...(authorLogMatches.data ?? [])] as PublicReadingLog[];
+      const combinedLogs = [...(logMatches.data ?? []), ...(authorLogMatches.data ?? [])] as unknown as PublicReadingLog[];
       const uniqueLogs = [...new Map(combinedLogs.map((log) => [log.id, log])).values()];
       setReadingLogs(uniqueLogs);
       await loadAuthorIds(uniqueLogs);

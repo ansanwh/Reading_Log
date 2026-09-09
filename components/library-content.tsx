@@ -14,6 +14,7 @@ export type ReadingLog = {
   entries: ReadingEntry[];
   finalSummary: string;
   finalReview: string;
+  finalRating: number | null;
   favoriteScene: string;
   favoriteSceneImage: string;
 };
@@ -145,6 +146,7 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
   const [draftCurrentPageInputs, setDraftCurrentPageInputs] = useState<Record<string, string>>({});
   const [draftFinalSummary, setDraftFinalSummary] = useState("");
   const [draftFinalReview, setDraftFinalReview] = useState("");
+  const [draftFinalRating, setDraftFinalRating] = useState<number | null>(null);
   const [draftFavoriteScene, setDraftFavoriteScene] = useState("");
   const [draftFavoriteSceneImage, setDraftFavoriteSceneImage] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -163,6 +165,7 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
   const hasFinalChange = selectedLog
     ? draftFinalSummary !== selectedLog.finalSummary ||
       draftFinalReview !== selectedLog.finalReview ||
+      draftFinalRating !== selectedLog.finalRating ||
       draftFavoriteScene !== selectedLog.favoriteScene ||
       draftFavoriteSceneImage !== selectedLog.favoriteSceneImage ||
        draftIsPublic !== selectedLog.isPublic ||
@@ -205,6 +208,7 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
     setDraftCurrentPageInputs(getCurrentPageInputValues(selectedEntries));
     setDraftFinalSummary(selectedLog?.finalSummary ?? "");
     setDraftFinalReview(selectedLog?.finalReview ?? "");
+    setDraftFinalRating(selectedLog?.finalRating ?? null);
     setDraftFavoriteScene(selectedLog?.favoriteScene ?? "");
     setDraftFavoriteSceneImage(selectedLog?.favoriteSceneImage ?? "");
   }, [selectedLog, selectedLogId, groups]);
@@ -241,6 +245,7 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
       groupId: groups[0]?.id ?? null,
       finalSummary: "",
       finalReview: "",
+      finalRating: null,
       favoriteScene: "",
       favoriteSceneImage: "",
       entries: [
@@ -280,6 +285,7 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
       entries: draftEntries,
       finalSummary: draftFinalSummary,
       finalReview: draftFinalReview,
+      finalRating: draftFinalRating,
       favoriteScene: draftFavoriteScene,
       favoriteSceneImage: draftFavoriteSceneImage,
     };
@@ -294,6 +300,7 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
         group_id: nextLog.groupId,
       final_summary: nextLog.finalSummary,
       final_review: nextLog.finalReview,
+      final_rating: nextLog.finalRating,
       favorite_scene: nextLog.favoriteScene,
       favorite_scene_image: nextLog.favoriteSceneImage,
     });
@@ -405,6 +412,7 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
       setDraftCurrentPageInputs({});
       setDraftFinalSummary("");
       setDraftFinalReview("");
+      setDraftFinalRating(null);
       setDraftFavoriteScene("");
       setDraftFavoriteSceneImage("");
       return;
@@ -420,6 +428,7 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
     setDraftCurrentPageInputs(getCurrentPageInputValues(selectedLog.entries));
     setDraftFinalSummary(selectedLog.finalSummary);
     setDraftFinalReview(selectedLog.finalReview);
+    setDraftFinalRating(selectedLog.finalRating);
     setDraftFavoriteScene(selectedLog.favoriteScene);
     setDraftFavoriteSceneImage(selectedLog.favoriteSceneImage ?? "");
     setEditingLogId(null);
@@ -499,6 +508,7 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
     setDraftCurrentPageInputs({});
     setDraftFinalSummary("");
     setDraftFinalReview("");
+    setDraftFinalRating(null);
     setDraftFavoriteScene("");
     setDraftFavoriteSceneImage("");
     setIsSaving(false);
@@ -732,6 +742,34 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
                 readOnly={!isEditingSelectedLog}
               />
             </label>
+            <div className="book-final-field">
+              <span id="final-rating-label">별점</span>
+              <div className="final-rating" role="radiogroup" aria-labelledby="final-rating-label">
+                {[1, 2, 3, 4, 5].map((rating) => {
+                  const isSelected = draftFinalRating === rating;
+
+                  return (
+                    <button
+                      className={`final-rating-star${draftFinalRating !== null && rating <= draftFinalRating ? " selected" : ""}`}
+                      type="button"
+                      key={rating}
+                      role="radio"
+                      aria-checked={isSelected}
+                      aria-label={`${rating}점${isSelected ? ", 선택됨" : ""}`}
+                      disabled={!isEditingSelectedLog}
+                      onClick={() => setDraftFinalRating((currentRating) => currentRating === rating ? null : rating)}
+                    >
+                      ★
+                    </button>
+                  );
+                })}
+                {draftFinalRating !== null && isEditingSelectedLog ? (
+                  <button className="final-rating-clear" type="button" onClick={() => setDraftFinalRating(null)}>
+                    지우기
+                  </button>
+                ) : null}
+              </div>
+            </div>
             <label className="book-final-field">
               <span>가장 좋아하는 장면</span>
               <textarea

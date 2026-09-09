@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { AccountProfile } from "@/components/account-profile";
 import { AuthActions } from "@/components/auth-actions";
-import { getReadingProgress, getReadingStatus, PublicReadingLogDetail, publicReadingLogSelect, type PublicReadingLog } from "@/components/public-reading-log-detail";
+import { getReadingProgress, getReadingStatus, legacyPublicReadingLogSelect, PublicReadingLogDetail, publicReadingLogSelect, type PublicReadingLog } from "@/components/public-reading-log-detail";
 import { SiteLogo } from "@/components/site-logo";
 import { isAdminEmail } from "@/lib/admin";
 import { createClient } from "@/lib/supabase/browser";
@@ -49,7 +49,16 @@ export function GroupsPageContent() {
     if (!selectedGroupId) return;
     const supabase = createClient();
     void (async () => {
-      const { data, error } = await supabase.from("reading_logs").select(publicReadingLogSelect).eq("group_id", selectedGroupId).order("updated_at", { ascending: false });
+      const primaryResult = await supabase.from("reading_logs").select(publicReadingLogSelect).eq("group_id", selectedGroupId).order("updated_at", { ascending: false });
+      let data = primaryResult.data as PublicReadingLog[] | null;
+      let error = primaryResult.error;
+
+      if (error?.code === "42703") {
+        const legacyResult = await supabase.from("reading_logs").select(legacyPublicReadingLogSelect).eq("group_id", selectedGroupId).order("updated_at", { ascending: false });
+        data = legacyResult.data as PublicReadingLog[] | null;
+        error = legacyResult.error;
+      }
+
       if (error) {
         setMessage("그룹 독서 기록장을 불러오지 못했습니다.");
         return;

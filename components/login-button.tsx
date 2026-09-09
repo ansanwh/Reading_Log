@@ -37,6 +37,10 @@ function getAuthErrorMessage(message: string) {
     return "현재 회원가입이 비활성화되어 있습니다.";
   }
 
+  if (normalizedMessage.includes("provider is not enabled") || normalizedMessage.includes("unsupported provider")) {
+    return "카카오 로그인이 아직 설정되지 않았습니다. 관리자에게 카카오 로그인 설정을 요청해 주세요.";
+  }
+
   if (normalizedMessage.includes("rate limit") || normalizedMessage.includes("too many")) {
     return "요청이 너무 많습니다. 잠시 뒤 다시 시도해 주세요.";
   }
@@ -99,13 +103,21 @@ export function LoginButton({ compact = false, initialMode = "login" }: LoginBut
   }
 
   async function loginWithKakao() {
+    setIsLoading(true);
+    setMessage("");
+    setIsMessagePositive(false);
     const supabase = createClient();
-    await supabase.auth.signInWithOAuth({
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: "kakao",
       options: {
         redirectTo: new URL(sitePath("auth/callback/"), document.baseURI).toString(),
       },
     });
+
+    if (error) {
+      setIsLoading(false);
+      setMessage(getAuthErrorMessage(error.message));
+    }
   }
 
   async function loginWithCode(event: FormEvent<HTMLFormElement>) {
@@ -220,8 +232,8 @@ export function LoginButton({ compact = false, initialMode = "login" }: LoginBut
         <span>또는</span>
       </div>
 
-      <button className="button kakao" type="button" onClick={loginWithKakao}>
-        카카오로 로그인
+      <button className="button kakao" type="button" onClick={loginWithKakao} disabled={isLoading}>
+        {isLoading ? "카카오 로그인으로 이동 중..." : "카카오로 로그인"}
       </button></> : null}
     </div>
   );
