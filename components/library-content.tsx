@@ -28,6 +28,15 @@ type ReadingEntry = {
   currentPage: number;
 };
 
+type SupabaseError = {
+  code?: string;
+  message: string;
+  details?: string | null;
+  hint?: string | null;
+};
+
+const optionalReadingLogColumns = ["final_rating", "genre", "group_id"] as const;
+
 type LibraryContentProps = {
   initialReadingLogs?: ReadingLog[];
   userId: string;
@@ -107,6 +116,16 @@ function hasIncreasingCurrentPages(entries: ReadingEntry[]) {
   return entries.every((entry, index) => index === 0 || entry.currentPage >= entries[index - 1].currentPage);
 }
 
+function getMissingReadingLogColumn(error: SupabaseError) {
+  if (error.code !== "42703" && error.code !== "PGRST204") {
+    return null;
+  }
+
+  const errorText = `${error.message} ${error.details ?? ""} ${error.hint ?? ""}`;
+
+  return optionalReadingLogColumns.find((column) => errorText.includes(column)) ?? null;
+}
+
 function getReadingStatus(entries: ReadingEntry[], totalPages: number): ReadingStatus {
   const currentPage = entries.reduce((maximum, entry) => Math.max(maximum, entry.currentPage), 0);
 
@@ -175,22 +194,30 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
   const hasValidTotalPages = draftTotalPages > 0;
   const hasValidGenres = parseGenres(draftGenre).length <= 5;
   const hasValidCurrentPages = hasIncreasingCurrentPages(draftEntries);
+  const hasValidEntryDates = draftEntries.every((entry) => entry.date.trim().length > 0);
   const hasRequiredBookInfo = draftTitle.trim().length > 0 && hasValidTotalPages;
+  const hasRequiredGroup = groups.length === 0 || draftGroupId !== null;
   const hasAnyFinalContent =
     draftFinalSummary.trim().length > 0 ||
     draftFinalReview.trim().length > 0 ||
+    draftFinalRating !== null ||
     draftFavoriteScene.trim().length > 0 ||
     draftFavoriteSceneImage.trim().length > 0;
   const hasRequiredFinalContent =
-    !hasAnyFinalContent || (draftFinalSummary.trim().length > 0 && draftFinalReview.trim().length > 0);
+    !hasAnyFinalContent ||
+    (draftFinalSummary.trim().length > 0 &&
+      draftFinalReview.trim().length > 0 &&
+      draftFinalRating !== null);
   const canConfirm =
     !isSaving &&
     hasDraftChange &&
     hasValidTotalPages &&
     hasValidGenres &&
     hasValidCurrentPages &&
+    hasValidEntryDates &&
+    hasRequiredGroup &&
     hasRequiredFinalContent &&
-    (!isSelectedDraftLog || hasRequiredBookInfo);
+    hasRequiredBookInfo;
   const hasDraftLog = draftLogId !== null;
   const isEditingSelectedLog = isSelectedDraftLog || (selectedLogId !== null && selectedLogId === editingLogId);
   const isWriting = hasDraftLog || isEditingSelectedLog || hasDraftChange;
@@ -277,7 +304,7 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
 
     const nextLog = {
       id: selectedLogId,
-      title: draftTitle,
+      title: draftTitle.trim(),
       genre: normalizeGenres(draftGenre),
       totalPages: draftTotalPages,
       isPublic: draftIsPublic,
@@ -290,20 +317,33 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
       favoriteSceneImage: draftFavoriteSceneImage,
     };
     const supabase = createClient();
-    const { error: logError } = await supabase.from("reading_logs").upsert({
+    const logPayload: Record<string, string | number | boolean | null> = {
       id: nextLog.id,
       user_id: userId,
       title: nextLog.title,
       genre: nextLog.genre,
       total_pages: nextLog.totalPages,
-        is_public: nextLog.isPublic,
-        group_id: nextLog.groupId,
+      is_public: nextLog.isPublic,
+      group_id: nextLog.groupId,
       final_summary: nextLog.finalSummary,
       final_review: nextLog.finalReview,
       final_rating: nextLog.finalRating,
       favorite_scene: nextLog.favoriteScene,
       favorite_scene_image: nextLog.favoriteSceneImage,
-    });
+    };
+    let { error: logError } = await supabase.from("reading_logs").upsert(logPayload);
+
+    // 배포 환경의 마이그레이션이 늦게 반영됐더라도 나머지 독서 기록은 저장한다.
+    while (logError) {
+      const missingColumn = getMissingReadingLogColumn(logError);
+
+      if (!missingColumn || !(missingColumn in logPayload)) {
+        break;
+      }
+
+      delete logPayload[missingColumn];
+      ({ error: logError } = await supabase.from("reading_logs").upsert(logPayload));
+    }
 
     if (logError) {
       setIsSaving(false);
@@ -591,9 +631,11 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
           </label>
           {groups.length > 0 ? (
             <label className="public-toggle">
-              <span>그룹</span>
+              <span>그룹 <span className="required-mark" aria-hidden="true">*</span></span>
               <select
                 aria-label="그룹 선택"
+                aria-required="true"
+                required
                 value={draftGroupId ?? ""}
                 disabled={!isEditingSelectedLog}
                 onChange={(event) => setDraftGroupId(event.target.value || null)}
@@ -605,13 +647,18 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
           {saveError ? <p className="library-error-state">{saveError}</p> : null}
           <section className={`book-detail${bookDetailStateClassName}`} aria-label="선택한 독서 기록장">
             <div className="book-title-bar">
-              <input
-                aria-label="책 제목"
-                value={draftTitle}
-                onChange={(event) => setDraftTitle(event.target.value)}
-                placeholder="책 제목"
-                readOnly={!isEditingSelectedLog}
-              />
+              <label className="book-title-field">
+                <span className="book-title-label">책 제목 <span className="required-mark" aria-hidden="true">*</span></span>
+                <input
+                  aria-label="책 제목"
+                  aria-required="true"
+                  required
+                  value={draftTitle}
+                  onChange={(event) => setDraftTitle(event.target.value)}
+                  placeholder="책 제목을 입력하세요"
+                  readOnly={!isEditingSelectedLog}
+                />
+              </label>
               <button className="delete-log-button title-delete" type="button" onClick={deleteSelectedLog} disabled={!isEditingSelectedLog}>
                 삭제
               </button>
@@ -632,10 +679,12 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
               <section className="book-entry" aria-label="날짜별 독서 기록" key={entry.id}>
                 <div className="book-meta-row">
                   <label className="book-date-field">
-                    <span>날짜</span>
+                    <span>날짜 <span className="required-mark" aria-hidden="true">*</span></span>
                     <input
                       aria-label="독서 날짜"
+                      aria-required="true"
                       type="date"
+                      required
                       value={entry.date}
                       disabled={!isEditingSelectedLog}
                       onChange={(event) => updateDraftEntry(entry.id, { date: event.target.value })}
@@ -660,11 +709,13 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
                   </label>
                   {index === 0 ? (
                     <label className="book-page-field">
-                      <span>전체 쪽수</span>
+                      <span>전체 쪽수 <span className="required-mark" aria-hidden="true">*</span></span>
                       <input
                         aria-label="전체 쪽수"
+                        aria-required="true"
                         type="number"
-                        min="0"
+                        min="1"
+                        required
                         value={draftTotalPagesInput}
                         disabled={!isEditingSelectedLog}
                         onChange={(event) => {
@@ -721,9 +772,11 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
           <section className={`book-final-section${bookDetailStateClassName}`} aria-label="최종 독서 기록">
             <div className="book-final-title">최종</div>
             <label className="book-final-field">
-              <span>내용 간단 요약</span>
+              <span>내용 간단 요약 {hasAnyFinalContent ? <span className="required-mark" aria-hidden="true">*</span> : null}</span>
               <textarea
                 aria-label="내용 간단 요약"
+                aria-required={hasAnyFinalContent}
+                required={hasAnyFinalContent}
                 value={draftFinalSummary}
                 onInput={(event) => resizeTextarea(event.currentTarget)}
                 onChange={(event) => setDraftFinalSummary(event.target.value)}
@@ -732,9 +785,11 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
               />
             </label>
             <label className="book-final-field">
-              <span>최종 감상평</span>
+              <span>최종 감상평 {hasAnyFinalContent ? <span className="required-mark" aria-hidden="true">*</span> : null}</span>
               <textarea
                 aria-label="최종 감상평"
+                aria-required={hasAnyFinalContent}
+                required={hasAnyFinalContent}
                 value={draftFinalReview}
                 onInput={(event) => resizeTextarea(event.currentTarget)}
                 onChange={(event) => setDraftFinalReview(event.target.value)}
@@ -743,8 +798,8 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
               />
             </label>
             <div className="book-final-field">
-              <span id="final-rating-label">별점</span>
-              <div className="final-rating" role="radiogroup" aria-labelledby="final-rating-label">
+              <span id="final-rating-label">별점 {hasAnyFinalContent ? <span className="required-mark" aria-hidden="true">*</span> : null}</span>
+              <div className="final-rating" role="radiogroup" aria-labelledby="final-rating-label" aria-required={hasAnyFinalContent}>
                 {[1, 2, 3, 4, 5].map((rating) => {
                   const isSelected = draftFinalRating === rating;
 
