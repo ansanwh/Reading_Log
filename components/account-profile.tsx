@@ -41,6 +41,12 @@ export function AccountProfile({ displayName, email, isAdmin = false }: AccountP
   const [openSetting, setOpenSetting] = useState<"public-id" | "password" | null>(null);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [passwordMessage, setPasswordMessage] = useState("");
+  const [isPasswordMessagePositive, setIsPasswordMessagePositive] = useState(false);
+  const [isKakaoAccount, setIsKakaoAccount] = useState(false);
+  const [accountEmail, setAccountEmail] = useState(email ?? null);
+  const [emailDraft, setEmailDraft] = useState("");
+  const [emailMessage, setEmailMessage] = useState("");
+  const [isSavingEmail, setIsSavingEmail] = useState(false);
   const [publicId, setPublicId] = useState("");
   const [publicIdDraft, setPublicIdDraft] = useState("");
   const [publicIdMessage, setPublicIdMessage] = useState("");
@@ -79,6 +85,10 @@ export function AccountProfile({ displayName, email, isAdmin = false }: AccountP
         return;
       }
 
+      const providers = user.app_metadata?.providers as string[] | undefined;
+      setIsKakaoAccount(Boolean(user.identities?.some((identity) => identity.provider === "kakao") || providers?.includes("kakao")));
+      setAccountEmail(user.email ?? null);
+
       const { data } = await supabase.from("profiles").select("username").eq("id", user.id).maybeSingle();
       if (isActive) {
         const username = data?.username ?? "";
@@ -96,7 +106,29 @@ export function AccountProfile({ displayName, email, isAdmin = false }: AccountP
     setIsOpen(false);
     setOpenSetting(null);
     setPasswordMessage("");
+    setIsPasswordMessagePositive(false);
+    setEmailMessage("");
     setPublicIdMessage("");
+  }
+
+  async function saveLoginEmail(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const requestedEmail = emailDraft.trim().toLowerCase();
+    setIsSavingEmail(true);
+    setEmailMessage("");
+
+    const { error } = await createClient().auth.updateUser(
+      { email: requestedEmail },
+      { emailRedirectTo: new URL(sitePath("auth/callback/"), document.baseURI).toString() },
+    );
+    setIsSavingEmail(false);
+
+    if (error) {
+      setEmailMessage("이메일을 등록하지 못했습니다. 주소를 확인한 뒤 다시 시도해 주세요.");
+      return;
+    }
+
+    setEmailMessage("인증 메일을 보냈습니다. 메일에서 확인한 뒤 다시 로그인해 비밀번호를 설정해 주세요.");
   }
 
   async function savePublicId(event: FormEvent<HTMLFormElement>) {
@@ -138,6 +170,7 @@ export function AccountProfile({ displayName, email, isAdmin = false }: AccountP
   async function changePassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPasswordMessage("");
+    setIsPasswordMessagePositive(false);
 
     const form = event.currentTarget;
     const formData = new FormData(form);
@@ -165,7 +198,8 @@ export function AccountProfile({ displayName, email, isAdmin = false }: AccountP
     }
 
     form.reset();
-    setPasswordMessage("비밀번호가 변경되었습니다.");
+    setPasswordMessage(isKakaoAccount ? "이메일 로그인이 설정되었습니다. 이제 표시된 이메일과 새 비밀번호로 로그인할 수 있습니다." : "비밀번호가 변경되었습니다.");
+    setIsPasswordMessagePositive(true);
   }
 
   const modal =
@@ -192,7 +226,7 @@ export function AccountProfile({ displayName, email, isAdmin = false }: AccountP
                 </div>
                 <div className="account-profile-info">
                   <strong>{displayName}</strong>
-                  {email ? <span>{email}</span> : null}
+                  {accountEmail ? <span>{accountEmail}</span> : null}
                   <span>공개 ID {publicId || "익명"}</span>
                   {isAdmin ? <span className="admin-badge">관리자</span> : null}
                 </div>
@@ -234,7 +268,7 @@ export function AccountProfile({ displayName, email, isAdmin = false }: AccountP
                   aria-controls="password-setting"
                   onClick={() => setOpenSetting((current) => (current === "password" ? null : "password"))}
                 >
-                  비밀번호 변경
+                  {isKakaoAccount ? "이메일 로그인 설정" : "비밀번호 변경"}
                 </button>
               </div>
 
@@ -260,23 +294,38 @@ export function AccountProfile({ displayName, email, isAdmin = false }: AccountP
               ) : null}
 
               {openSetting === "password" ? (
-                <form id="password-setting" className="account-password-form account-setting-detail" onSubmit={changePassword}>
-                  <label className="field">
-                    <span>새 비밀번호</span>
-                    <input name="new-password" type="password" minLength={6} required autoComplete="new-password" placeholder="6자 이상" />
-                  </label>
+                <div id="password-setting" className="account-setting-detail">
+                  {isKakaoAccount ? <p className="account-public-id-help">카카오 계정으로 로그인한 상태에서 비밀번호를 설정하면 같은 이메일로도 로그인할 수 있습니다.</p> : null}
+                  {isKakaoAccount && !accountEmail ? (
+                    <form className="account-password-form" onSubmit={saveLoginEmail}>
+                      <p className="account-public-id-help">카카오에서 이메일을 받지 못했습니다. 이메일을 등록하고 인증한 뒤 비밀번호를 설정해 주세요.</p>
+                      <label className="field">
+                        <span>로그인에 사용할 이메일</span>
+                        <input type="email" required value={emailDraft} onChange={(event) => setEmailDraft(event.target.value)} autoComplete="email" placeholder="you@example.com" />
+                      </label>
+                      {emailMessage ? <p className="auth-message">{emailMessage}</p> : null}
+                      <button className="button secondary" type="submit" disabled={isSavingEmail}>{isSavingEmail ? "등록 중..." : "이메일 인증 보내기"}</button>
+                    </form>
+                  ) : (
+                    <form className="account-password-form" onSubmit={changePassword}>
+                      <label className="field">
+                        <span>새 비밀번호</span>
+                        <input name="new-password" type="password" minLength={6} required autoComplete="new-password" placeholder="6자 이상" />
+                      </label>
 
-                  <label className="field">
-                    <span>새 비밀번호 확인</span>
-                    <input name="confirm-password" type="password" minLength={6} required autoComplete="new-password" placeholder="새 비밀번호 다시 입력" />
-                  </label>
+                      <label className="field">
+                        <span>새 비밀번호 확인</span>
+                        <input name="confirm-password" type="password" minLength={6} required autoComplete="new-password" placeholder="새 비밀번호 다시 입력" />
+                      </label>
 
-                  {passwordMessage ? <p className={`auth-message${passwordMessage === "비밀번호가 변경되었습니다." ? " success" : ""}`}>{passwordMessage}</p> : null}
+                      {passwordMessage ? <p className={`auth-message${isPasswordMessagePositive ? " success" : ""}`}>{passwordMessage}</p> : null}
 
-                  <button className="button secondary" type="submit" disabled={isChangingPassword}>
-                    {isChangingPassword ? "변경 중..." : "비밀번호 변경"}
-                  </button>
-                </form>
+                      <button className="button secondary" type="submit" disabled={isChangingPassword}>
+                        {isChangingPassword ? "설정 중..." : isKakaoAccount ? "이메일 로그인 비밀번호 설정" : "비밀번호 변경"}
+                      </button>
+                    </form>
+                  )}
+                </div>
               ) : null}
             </div>
           </div>,

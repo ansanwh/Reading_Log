@@ -1,7 +1,7 @@
 import { createHash, randomBytes, randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { isSuperAdminEmail } from "@/lib/admin";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { adminConfigurationResponse, createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 const hashCode = (code: string) => createHash("sha256").update(code).digest("hex");
@@ -11,6 +11,8 @@ export async function POST(request: Request) {
   const sessionClient = await createClient();
   const { data: { user } } = await sessionClient.auth.getUser();
   if (!user) return NextResponse.json({ message: "로그인이 필요합니다." }, { status: 401 });
+  const configurationError = adminConfigurationResponse();
+  if (configurationError) return configurationError;
   const { groupId, code, years = 1 } = await request.json() as { groupId?: string; code?: string; years?: number };
   const normalizedCode = code?.trim();
   if (!groupId || !normalizedCode || !/^\d{1,5}$/.test(normalizedCode)) return NextResponse.json({ message: "그룹과 5자리 이하 숫자 코드를 입력해 주세요." }, { status: 400 });

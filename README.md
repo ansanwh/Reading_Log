@@ -22,6 +22,7 @@ npm install
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=...
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+SUPABASE_SECRET_KEY=sb_secret_... # 서버에서만 사용, 관리자 기능 및 코드 로그인에 필요
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ADMIN_EMAILS=admin@example.com
 ```

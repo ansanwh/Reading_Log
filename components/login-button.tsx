@@ -8,13 +8,14 @@ import { sitePath } from "@/lib/site-path";
 type LoginButtonProps = {
   compact?: boolean;
   initialMode?: "login" | "signup";
+  afterLogin?: "main" | "library";
 };
 
 function getAuthErrorMessage(message: string) {
   const normalizedMessage = message.toLowerCase();
 
   if (normalizedMessage.includes("invalid login credentials")) {
-    return "이메일 또는 비밀번호가 올바르지 않습니다.";
+    return "이메일 또는 비밀번호가 올바르지 않습니다. 카카오로 가입했다면 카카오 로그인 후 계정 프로필에서 이메일 로그인을 설정해 주세요.";
   }
 
   if (normalizedMessage.includes("email not confirmed")) {
@@ -52,12 +53,17 @@ function getAuthErrorMessage(message: string) {
   return "인증 처리 중 문제가 발생했습니다. 잠시 뒤 다시 시도해 주세요.";
 }
 
-export function LoginButton({ compact = false, initialMode = "login" }: LoginButtonProps) {
+export function LoginButton({ compact = false, initialMode = "login", afterLogin = "main" }: LoginButtonProps) {
   const [mode, setMode] = useState<"login" | "signup" | "code">(initialMode);
   const [message, setMessage] = useState("");
   const [isMessagePositive, setIsMessagePositive] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const destination = sitePath(`${afterLogin}/`);
+
+  function getCallbackUrl() {
+    return new URL(sitePath("auth/callback/"), document.baseURI).toString();
+  }
 
   async function handlePasswordAuth(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -77,7 +83,7 @@ export function LoginButton({ compact = false, initialMode = "login" }: LoginBut
             email,
             password,
             options: {
-              emailRedirectTo: new URL(sitePath("auth/callback/"), document.baseURI).toString(),
+              emailRedirectTo: getCallbackUrl(),
             },
           });
 
@@ -89,6 +95,16 @@ export function LoginButton({ compact = false, initialMode = "login" }: LoginBut
     }
 
     if (mode === "signup") {
+      if (data.session) {
+        sessionStorage.removeItem("reading-log:auth-next");
+        window.location.assign(destination);
+        return;
+      }
+      if (afterLogin === "library") {
+        sessionStorage.setItem("reading-log:auth-next", "library");
+      } else {
+        sessionStorage.removeItem("reading-log:auth-next");
+      }
       setMessage("가입이 완료되었습니다. 이메일 확인이 필요한 경우 메일함을 확인해 주세요.");
       setIsMessagePositive(true);
       return;
@@ -99,22 +115,29 @@ export function LoginButton({ compact = false, initialMode = "login" }: LoginBut
       return;
     }
 
-    window.location.assign(sitePath("main/"));
+    sessionStorage.removeItem("reading-log:auth-next");
+    window.location.assign(destination);
   }
 
   async function loginWithKakao() {
     setIsLoading(true);
     setMessage("");
     setIsMessagePositive(false);
+    if (afterLogin === "library") {
+      sessionStorage.setItem("reading-log:auth-next", "library");
+    } else {
+      sessionStorage.removeItem("reading-log:auth-next");
+    }
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "kakao",
       options: {
-        redirectTo: new URL(sitePath("auth/callback/"), document.baseURI).toString(),
+        redirectTo: getCallbackUrl(),
       },
     });
 
     if (error) {
+      sessionStorage.removeItem("reading-log:auth-next");
       setIsLoading(false);
       setMessage(getAuthErrorMessage(error.message));
     }
@@ -140,7 +163,8 @@ export function LoginButton({ compact = false, initialMode = "login" }: LoginBut
       setMessage("코드 로그인 세션을 만들지 못했습니다.");
       return;
     }
-    window.location.assign(sitePath("main/"));
+    sessionStorage.removeItem("reading-log:auth-next");
+    window.location.assign(destination);
   }
 
   return (

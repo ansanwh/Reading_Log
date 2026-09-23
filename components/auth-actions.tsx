@@ -4,8 +4,14 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { LoginButton } from "@/components/login-button";
 
-export function AuthActions() {
-  const [isOpen, setIsOpen] = useState(false);
+type AuthActionsProps = {
+  openOnMount?: boolean;
+  introText?: string;
+  afterLogin?: "main" | "library";
+};
+
+export function AuthActions({ openOnMount = false, introText, afterLogin = "main" }: AuthActionsProps) {
+  const [isOpen, setIsOpen] = useState(openOnMount);
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
@@ -46,7 +52,8 @@ export function AuthActions() {
                   ×
                 </button>
               </div>
-              <LoginButton compact />
+              {introText ? <p className="auth-intro">{introText}</p> : null}
+              <LoginButton compact afterLogin={afterLogin} />
             </div>
           </div>,
           document.body,

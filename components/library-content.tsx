@@ -80,6 +80,11 @@ function createUuid() {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
+function getRatingFromPointer(clientX: number, element: HTMLElement) {
+  const { left, width } = element.getBoundingClientRect();
+  return Math.min(5, Math.max(0.5, Math.ceil(((clientX - left) / width) * 10) / 2));
+}
+
 function getBookWidth(totalPages: number) {
   if (totalPages <= 0) {
     return 104;
@@ -799,25 +804,55 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
             </label>
             <div className="book-final-field">
               <span id="final-rating-label">별점 {hasAnyFinalContent ? <span className="required-mark" aria-hidden="true">*</span> : null}</span>
-              <div className="final-rating" role="radiogroup" aria-labelledby="final-rating-label" aria-required={hasAnyFinalContent}>
-                {[1, 2, 3, 4, 5].map((rating) => {
-                  const isSelected = draftFinalRating === rating;
-
-                  return (
-                    <button
-                      className={`final-rating-star${draftFinalRating !== null && rating <= draftFinalRating ? " selected" : ""}`}
-                      type="button"
+              <div className="final-rating">
+                <div
+                  className="final-rating-stars"
+                  role="slider"
+                  tabIndex={isEditingSelectedLog ? 0 : -1}
+                  aria-labelledby="final-rating-label"
+                  aria-valuemin={0}
+                  aria-valuemax={5}
+                  aria-valuenow={draftFinalRating ?? 0}
+                  aria-valuetext={draftFinalRating === null ? "별점 없음" : `${draftFinalRating}점`}
+                  aria-required={hasAnyFinalContent}
+                  aria-disabled={!isEditingSelectedLog}
+                  onPointerDown={(event) => {
+                    if (!isEditingSelectedLog) return;
+                    event.preventDefault();
+                    event.currentTarget.setPointerCapture(event.pointerId);
+                    setDraftFinalRating(getRatingFromPointer(event.clientX, event.currentTarget));
+                  }}
+                  onPointerMove={(event) => {
+                    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                      setDraftFinalRating(getRatingFromPointer(event.clientX, event.currentTarget));
+                    }
+                  }}
+                  onKeyDown={(event) => {
+                    if (!isEditingSelectedLog) return;
+                    if (event.key === "ArrowRight" || event.key === "ArrowUp") {
+                      event.preventDefault();
+                      setDraftFinalRating((rating) => Math.min(5, (rating ?? 0) + 0.5));
+                    } else if (event.key === "ArrowLeft" || event.key === "ArrowDown") {
+                      event.preventDefault();
+                      setDraftFinalRating((rating) => rating === null || rating <= 0.5 ? null : rating - 0.5);
+                    } else if (event.key === "Home" || event.key === "Delete" || event.key === "Backspace") {
+                      event.preventDefault();
+                      setDraftFinalRating(null);
+                    } else if (event.key === "End") {
+                      event.preventDefault();
+                      setDraftFinalRating(5);
+                    }
+                  }}
+                >
+                  {[1, 2, 3, 4, 5].map((rating) => (
+                    <span
+                      className={`final-rating-star${draftFinalRating !== null && rating <= draftFinalRating ? " selected" : draftFinalRating === rating - 0.5 ? " half" : ""}`}
                       key={rating}
-                      role="radio"
-                      aria-checked={isSelected}
-                      aria-label={`${rating}점${isSelected ? ", 선택됨" : ""}`}
-                      disabled={!isEditingSelectedLog}
-                      onClick={() => setDraftFinalRating((currentRating) => currentRating === rating ? null : rating)}
-                    >
-                      ★
-                    </button>
-                  );
-                })}
+                      aria-hidden="true"
+                    >★</span>
+                  ))}
+                </div>
+                <output className="final-rating-value">{draftFinalRating === null ? "선택 안 함" : `${draftFinalRating}/5`}</output>
                 {draftFinalRating !== null && isEditingSelectedLog ? (
                   <button className="final-rating-clear" type="button" onClick={() => setDraftFinalRating(null)}>
                     지우기

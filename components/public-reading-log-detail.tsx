@@ -54,7 +54,7 @@ export function PublicReadingLogDetail({ log, authorId }: PublicReadingLogDetail
       </div>
       {entries.map((entry) => <article className="public-log-entry" key={entry.id}><h3>{entry.entry_date} · {entry.current_page}쪽</h3><p>{entry.note || "기록 없음"}</p></article>)}
       {log.final_summary ? <article className="public-log-entry"><h3>내용 간단 요약</h3><p>{log.final_summary}</p></article> : null}
-      {log.final_review || log.final_rating ? <article className="public-log-entry"><h3>최종 감상평</h3>{log.final_rating ? <p className="public-log-rating" aria-label={`별점 ${log.final_rating}점`}>{"★".repeat(log.final_rating)}{"☆".repeat(5 - log.final_rating)} <span>{log.final_rating}/5</span></p> : null}{log.final_review ? <p>{log.final_review}</p> : null}</article> : null}
+      {log.final_review || log.final_rating ? <article className="public-log-entry"><h3>최종 감상평</h3>{log.final_rating ? <p className="public-log-rating" aria-label={`별점 ${log.final_rating}점`}>{[1, 2, 3, 4, 5].map((rating) => <span key={rating} className={`rating-star${log.final_rating! >= rating ? " selected" : log.final_rating === rating - 0.5 ? " half" : ""}`} aria-hidden="true">★</span>)} <span className="public-log-rating-value">{log.final_rating}/5</span></p> : null}{log.final_review ? <p>{log.final_review}</p> : null}</article> : null}
       {log.favorite_scene ? <article className="public-log-entry"><h3>가장 좋아하는 장면</h3><p>{log.favorite_scene}</p></article> : null}
       {log.favorite_scene_image ? <img className="public-log-image" src={log.favorite_scene_image} alt={`${log.title}에서 좋아하는 장면`} /> : null}
     </section>

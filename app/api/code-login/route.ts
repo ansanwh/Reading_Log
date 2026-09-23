@@ -1,6 +1,6 @@
 import { createHash } from "crypto";
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient, hasAdminClientConfiguration } from "@/lib/supabase/admin";
 
 function hashCode(code: string) {
   return createHash("sha256").update(code).digest("hex");
@@ -11,6 +11,7 @@ export async function POST(request: Request) {
   const normalizedGroupName = groupName?.trim();
   const normalizedCode = code?.trim();
   if (!normalizedGroupName || !normalizedCode || !/^\d{1,5}$/.test(normalizedCode)) return NextResponse.json({ message: "그룹명과 5자리 이하 숫자 코드를 입력해 주세요." }, { status: 400 });
+  if (!hasAdminClientConfiguration()) return NextResponse.json({ message: "코드 로그인 서버 설정이 완료되지 않았습니다." }, { status: 503 });
 
   const admin = createAdminClient();
   const { data: group } = await admin.from("groups").select("id").eq("name", normalizedGroupName).maybeSingle();

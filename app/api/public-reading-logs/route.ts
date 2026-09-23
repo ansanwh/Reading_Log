@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isSuperAdminEmail } from "@/lib/admin";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { adminConfigurationResponse, createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +13,8 @@ async function requireSuperAdmin() {
 
 export async function GET() {
   if (!await requireSuperAdmin()) return NextResponse.json({ message: "최고 관리자만 공개 독서 기록을 관리할 수 있습니다." }, { status: 403 });
+  const configurationError = adminConfigurationResponse();
+  if (configurationError) return configurationError;
 
   const admin = createAdminClient();
   const { data: logs, error } = await admin
@@ -40,6 +42,8 @@ export async function GET() {
 
 export async function PATCH(request: Request) {
   if (!await requireSuperAdmin()) return NextResponse.json({ message: "최고 관리자만 공개 독서 기록을 관리할 수 있습니다." }, { status: 403 });
+  const configurationError = adminConfigurationResponse();
+  if (configurationError) return configurationError;
   const { logId } = await request.json() as { logId?: string };
   if (!logId) return NextResponse.json({ message: "비공개로 전환할 독서 기록을 선택해 주세요." }, { status: 400 });
 

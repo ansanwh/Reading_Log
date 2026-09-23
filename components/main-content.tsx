@@ -26,6 +26,7 @@ export function MainContent() {
   const [userName, setUserName] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isAuthChecked, setIsAuthChecked] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -40,7 +41,15 @@ export function MainContent() {
 
     void (async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!isActive || !user) return;
+      if (!isActive) return;
+      if (!user) {
+        setIsAuthChecked(true);
+        return;
+      }
+
+      setUserName(user.user_metadata?.name ?? user.email ?? "로그인됨");
+      setUserEmail(user.email ?? null);
+      setIsAuthChecked(true);
 
       const isGlobalAdmin = isAdminEmail(user.email);
       const { count: classAdminCount } = await supabase
@@ -50,8 +59,6 @@ export function MainContent() {
         .eq("role", "group_admin");
       if (!isActive) return;
 
-      setUserName(user.user_metadata?.name ?? user.email ?? "로그인됨");
-      setUserEmail(user.email ?? null);
       setIsAdmin(isGlobalAdmin || Boolean(classAdminCount));
     })();
 
@@ -157,7 +164,7 @@ export function MainContent() {
             </div>
           </details>
         </form>
-        {userName ? <AccountProfile displayName={userName} email={userEmail} isAdmin={isAdmin} /> : <AuthActions />}
+        {userName ? <AccountProfile displayName={userName} email={userEmail} isAdmin={isAdmin} /> : isAuthChecked ? <AuthActions openOnMount afterLogin="library" introText="로그인하면 바로 서재로 이동해 첫 기록을 시작할 수 있어요." /> : null}
       </header>
 
       <main className="main main-search-results">

@@ -17,6 +17,9 @@ export default function AuthCallbackPage() {
     hasHandledCallback.current = true;
     const callbackUrl = new URL(window.location.href);
     const code = callbackUrl.searchParams.get("code");
+    const afterLogin = sessionStorage.getItem("reading-log:auth-next");
+    sessionStorage.removeItem("reading-log:auth-next");
+    const destination = afterLogin === "library" ? sitePath("library/") : sitePath("main/");
     const providerError = callbackUrl.searchParams.get("error_description");
 
     if (providerError) {
@@ -39,7 +42,7 @@ export default function AuthCallbackPage() {
         setHasError(true);
         return;
       }
-      window.location.replace(sitePath("main/"));
+      window.location.replace(destination);
     });
   }, []);
 

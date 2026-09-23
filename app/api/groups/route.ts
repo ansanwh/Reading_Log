@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isSuperAdminEmail } from "@/lib/admin";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { adminConfigurationResponse, createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +14,8 @@ async function requireSuperAdmin() {
 export async function POST(request: Request) {
   try {
     if (!await requireSuperAdmin()) return NextResponse.json({ message: "최고 관리자만 그룹을 만들 수 있습니다." }, { status: 403 });
+    const configurationError = adminConfigurationResponse();
+    if (configurationError) return configurationError;
     const { name, kind = "group" } = await request.json() as { name?: string; kind?: "group" | "class" };
     const trimmedName = name?.trim();
     if (!trimmedName || trimmedName.length > 80 || !["group", "class"].includes(kind)) return NextResponse.json({ message: "그룹 이름과 유형을 확인해 주세요." }, { status: 400 });
@@ -30,6 +32,8 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   try {
     if (!await requireSuperAdmin()) return NextResponse.json({ message: "최고 관리자만 그룹을 삭제할 수 있습니다." }, { status: 403 });
+    const configurationError = adminConfigurationResponse();
+    if (configurationError) return configurationError;
     const { groupId } = await request.json() as { groupId?: string };
     if (!groupId) return NextResponse.json({ message: "삭제할 그룹을 선택해 주세요." }, { status: 400 });
 
