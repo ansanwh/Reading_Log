@@ -119,7 +119,7 @@ export function LibraryPageContent() {
     <div className="shell">
       <header className="topbar">
         <SiteLogo />
-        <h1 className="page-title">서재</h1>
+        <h1 className="page-title">내 서재</h1>
         {groups.length > 0 ? <a className="button secondary" href={sitePath("groups/")}>그룹방</a> : null}
         {userId ? <AccountProfile displayName={displayName} email={email} isAdmin={isAdmin} /> : <AuthActions />}
       </header>

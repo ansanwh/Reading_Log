@@ -148,7 +148,6 @@ export function MainContent() {
     <div className="shell">
       <header className="topbar">
         <SiteLogo />
-        <h1 className="page-title">검색</h1>
         <form className="main-search" role="search" onSubmit={submitSearch}>
           <label className="main-search-label" htmlFor="main-book-search">공개 독서 기록장 검색</label>
           <div className="main-search-row">

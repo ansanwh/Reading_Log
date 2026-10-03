@@ -75,50 +75,11 @@ button {
   text-decoration: none;
 }
 
-.logo-mark {
+.site-logo-image {
   width: 42px;
   height: 42px;
-  border: 1px solid var(--line);
-  border-radius: 50%;
-  background:
-    linear-gradient(135deg, rgba(47, 111, 94, 0.95), rgba(35, 31, 32, 0.94));
-  color: var(--surface);
-  display: grid;
-  place-items: center;
-  box-shadow: 0 8px 20px rgba(35, 31, 32, 0.1);
-}
-
-.logo-mark span {
-  position: relative;
-  width: 21px;
-  height: 17px;
-  border: 2px solid currentColor;
-  border-radius: 3px 6px 6px 3px;
-  background: rgba(255, 253, 248, 0.12);
-}
-
-.logo-mark span::before {
-  content: "";
-  position: absolute;
-  top: -2px;
-  bottom: -2px;
-  left: 7px;
-  width: 2px;
-  background: currentColor;
-  opacity: 0.9;
-}
-
-.logo-mark span::after {
-  content: "";
-  position: absolute;
-  right: -5px;
-  top: 3px;
-  width: 7px;
-  height: 9px;
-  border: 2px solid currentColor;
-  border-left: 0;
-  border-radius: 0 5px 5px 0;
-  opacity: 0.9;
+  display: block;
+  object-fit: contain;
 }
 
 .brand strong {
@@ -1974,7 +1935,7 @@ h1 {
     padding: 10px 12px;
   }
 
-  .logo-mark,
+  .site-logo-image,
   .profile-button {
     width: 36px;
     height: 36px;
