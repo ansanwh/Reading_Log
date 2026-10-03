@@ -5,7 +5,9 @@ type SiteLogoProps = {
 export function SiteLogo({ showText = false }: SiteLogoProps) {
   return (
     <a className="site-logo" href={sitePath("main/")} aria-label="메인 페이지로 이동">
-      <img className="site-logo-image" src={sitePath("site-logo.png")} alt="" width={42} height={42} aria-hidden="true" />
+      <span className="site-logo-mark" aria-hidden="true">
+        <img className="site-logo-image" src={sitePath("site-logo-book.png")} alt="" width={42} height={42} />
+      </span>
       {showText ? (
         <div className="brand">
           <strong>Reading Log</strong>
