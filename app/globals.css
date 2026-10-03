@@ -4,7 +4,7 @@
   --surface-strong: #ffffff;
   --ink: #231f20;
   --muted: #70685f;
-  --completed-text: #8a8a8a;
+  --reading-text: #8a8a8a;
   --line: #ded4c4;
   --accent: #2f6f5e;
   --accent-dark: #234e43;
@@ -150,14 +150,6 @@ h1 {
   margin: 0;
 }
 
-.lead {
-  color: var(--muted);
-  font-size: 18px;
-  line-height: 1.7;
-  margin: 20px 0 0;
-  max-width: 620px;
-}
-
 .actions {
   display: flex;
   flex-wrap: wrap;
@@ -270,10 +262,6 @@ h1 {
   gap: 6px;
 }
 
-.main-search-row-single {
-  grid-template-columns: minmax(0, 1fr);
-}
-
 .main-search-row input {
   width: 100%;
   min-height: 38px;
@@ -346,10 +334,30 @@ h1 {
   text-align: center;
 }
 
-.search-main {
-  width: min(760px, calc(100% - 36px));
-  margin: 0 auto;
-  padding: 34px 0 64px;
+.save-requirement-alert {
+  margin: 10px 0 0;
+  border: 1px solid color-mix(in srgb, var(--rose) 38%, var(--line));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--rose) 7%, var(--surface));
+  color: var(--ink);
+  padding: 12px 16px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.save-requirement-alert strong {
+  display: block;
+  color: var(--rose);
+  font-size: 14px;
+}
+
+.save-requirement-alert ul {
+  margin: 6px 0 0;
+  padding-left: 20px;
+}
+
+.save-requirement-alert li + li {
+  margin-top: 2px;
 }
 
 .search-page-form {
@@ -586,14 +594,6 @@ h1 {
   opacity: 0.38;
 }
 
-.shelf-book.completed {
-  color: var(--completed-text);
-}
-
-.shelf-book.completed .shelf-book-title {
-  color: var(--completed-text);
-}
-
 .shelf-book.editing {
   color: var(--ink);
   animation: shelf-book-border-blink 0.9s ease-in-out infinite;
@@ -632,7 +632,7 @@ h1 {
 .book-title-bar {
   min-height: 52px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
   gap: 10px;
   border-bottom: 1px solid var(--line);
@@ -726,13 +726,12 @@ h1 {
   color: var(--ink);
 }
 
-.book-detail.completed .book-title-bar input,
-.book-detail.completed .book-genre-row input,
-.book-detail.completed .book-meta-row,
-.book-detail.completed .book-date-field input,
-.book-detail.completed .book-page-field input,
-.book-detail.completed .book-note-area textarea {
-  color: var(--completed-text);
+.book-detail .book-genre-row input,
+.book-detail .book-date-field input,
+.book-detail .book-page-field input,
+.book-detail .book-page-field select,
+.book-detail .book-note-area textarea {
+  color: var(--reading-text);
 }
 
 .book-title-actions {
@@ -811,10 +810,6 @@ h1 {
   padding: 0 10px;
   font-size: 12px;
   font-weight: 700;
-}
-
-.delete-log-button.title-delete {
-  flex: 0 0 auto;
 }
 
 .book-note-area {
@@ -908,10 +903,8 @@ h1 {
   color: var(--ink);
 }
 
-.book-final-section.completed .book-final-title,
-.book-final-section.completed .book-final-field > span,
-.book-final-section.completed .book-final-field textarea {
-  color: var(--completed-text);
+.book-final-section .book-final-field textarea {
+  color: var(--reading-text);
 }
 
 .book-final-section .book-final-field span.required-mark {
@@ -968,6 +961,9 @@ h1 {
 }
 
 .final-rating-star {
+  width: 42px;
+  height: 42px;
+  font-size: 38px;
   pointer-events: none;
 }
 
@@ -979,6 +975,20 @@ h1 {
 .final-rating-star.half,
 .rating-star.half {
   background: linear-gradient(90deg, #f2b725 50%, var(--line) 50%);
+  background-clip: text;
+  color: transparent;
+}
+
+.book-final-section:not(.writing) .final-rating-star.selected {
+  color: color-mix(in srgb, #f2b725 42%, var(--line));
+}
+
+.book-final-section:not(.writing) .final-rating-star.half {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, #f2b725 42%, var(--line)) 50%,
+    var(--line) 50%
+  );
   background-clip: text;
   color: transparent;
 }
@@ -1089,6 +1099,57 @@ h1 {
   background: transparent;
   border-color: var(--line);
   color: var(--rose);
+}
+
+.button.danger.book-delete-button {
+  background: color-mix(in srgb, var(--rose) 9%, var(--surface));
+  border-color: color-mix(in srgb, var(--rose) 36%, var(--line));
+}
+
+.button.danger.book-delete-button:not(:disabled):hover {
+  background: color-mix(in srgb, var(--rose) 14%, var(--surface));
+  border-color: color-mix(in srgb, var(--rose) 52%, var(--line));
+}
+
+.button.danger.book-delete-button:not(:disabled):active {
+  background: color-mix(in srgb, var(--rose) 19%, var(--surface));
+}
+
+.button.book-confirm-button {
+  background: #79b88b;
+  border-color: #609d73;
+  color: #000;
+}
+
+.button.book-confirm-button:not(:disabled):hover {
+  background: #69a97d;
+  border-color: #548d66;
+}
+
+.button.book-confirm-button:not(:disabled):active {
+  background: #5b966d;
+  border-color: #477d59;
+}
+
+.button.book-confirm-button:disabled {
+  color: #000;
+  opacity: 1;
+}
+
+.button.book-cancel-button {
+  background: #111;
+  border-color: #111;
+  color: #fff;
+}
+
+.button.book-cancel-button:not(:disabled):hover {
+  background: #292929;
+  border-color: #292929;
+}
+
+.button.book-cancel-button:not(:disabled):active {
+  background: #000;
+  border-color: #000;
 }
 
 .button.compact {
@@ -1605,6 +1666,58 @@ h1 {
   min-width: 0;
 }
 
+.account-profile-primary-actions .button:not(:disabled),
+.account-profile-admin-actions .button:not(:disabled),
+.account-setting-actions .button:not(:disabled) {
+  cursor: pointer;
+  box-shadow: 0 2px 0 color-mix(in srgb, var(--line) 82%, var(--ink));
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    box-shadow 80ms ease,
+    color 140ms ease,
+    transform 80ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.account-profile-primary-actions .button:not(:disabled):hover,
+.account-profile-admin-actions .button:not(:disabled):hover,
+.account-setting-actions .button:not(:disabled):hover {
+  background: color-mix(in srgb, var(--surface-strong) 76%, var(--ink) 5%);
+  border-color: color-mix(in srgb, var(--line) 70%, var(--ink));
+}
+
+.account-profile-primary-actions .button:not(:disabled):focus-visible,
+.account-profile-admin-actions .button:not(:disabled):focus-visible,
+.account-setting-actions .button:not(:disabled):focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent) 34%, transparent);
+  outline-offset: 2px;
+}
+
+.account-profile-primary-actions .button:not(:disabled):active,
+.account-profile-admin-actions .button:not(:disabled):active,
+.account-setting-actions .button:not(:disabled):active {
+  background: color-mix(in srgb, var(--surface-strong) 68%, var(--ink) 10%);
+  border-color: color-mix(in srgb, var(--line) 54%, var(--ink));
+  box-shadow: 0 0 0 transparent;
+  transform: translateY(2px) scale(0.985);
+}
+
+.account-setting-actions .button[aria-expanded="true"] {
+  background: color-mix(in srgb, var(--surface-strong) 68%, var(--ink) 10%);
+  border-color: color-mix(in srgb, var(--line) 54%, var(--ink));
+  box-shadow: inset 0 2px 3px color-mix(in srgb, var(--ink) 16%, transparent);
+  transform: translateY(2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .account-profile-primary-actions .button,
+  .account-profile-admin-actions .button,
+  .account-setting-actions .button {
+    transition: none;
+  }
+}
+
 .account-setting-detail {
   display: grid;
   gap: 10px;
@@ -1921,11 +2034,6 @@ h1 {
     padding: 12px 0 18px;
   }
 
-  .search-main {
-    width: min(100% - 20px, 520px);
-    padding: 18px 0 32px;
-  }
-
   .public-search-result {
     display: block;
     padding: 14px;
@@ -2004,12 +2112,6 @@ h1 {
   .book-title-bar input {
     font-size: 18px;
     padding: 0;
-  }
-
-  .delete-log-button.title-delete {
-    min-height: 28px;
-    padding: 0 8px;
-    font-size: 11px;
   }
 
   .book-title-actions {
