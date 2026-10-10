@@ -3,7 +3,9 @@
 import type { CSSProperties, ChangeEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
-import { fetchBookByIsbn, isValidIsbn, normalizeIsbn } from "@/lib/open-library";
+import { isValidIsbn, normalizeIsbn } from "@/lib/isbn";
+import { BookLookupError, fetchBookByIsbn } from "@/lib/national-library";
+import { BookDataSource } from "@/components/book-data-source";
 
 export type ReadingLog = {
   id: string;
@@ -152,7 +154,6 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
   const [readingLogs, setReadingLogs] = useState<ReadingLog[]>(initialReadingLogs);
   const [selectedLogId, setSelectedLogId] = useState<string | null>(initialReadingLogs[0]?.id ?? null);
   const [draftLogId, setDraftLogId] = useState<string | null>(null);
-  const [editingLogId, setEditingLogId] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState("");
   const [draftIsbn, setDraftIsbn] = useState("");
   const [isLookingUpBook, setIsLookingUpBook] = useState(false);
@@ -174,10 +175,11 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
   const [searchQuery, setSearchQuery] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
-  const [saveRequirementErrors, setSaveRequirementErrors] = useState<string[]>([]);
   const [pendingFocusEntryId, setPendingFocusEntryId] = useState<string | null>(null);
   const libraryMainRef = useRef<HTMLElement | null>(null);
   const entryTextareaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
+  const saveLatestDraftRef = useRef<() => Promise<void>>(async () => {});
+  const lastAutoSaveAttemptRef = useRef("");
   const bookInfoRef = useRef({ title: draftTitle, totalPagesInput: draftTotalPagesInput });
   bookInfoRef.current = { title: draftTitle, totalPagesInput: draftTotalPagesInput };
   const selectedLog = readingLogs.find((log) => log.id === selectedLogId);
@@ -223,11 +225,11 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
   if (!hasValidEntryDates) unmetSaveRequirements.push("모든 독서 날짜 입력");
   if (!hasRequiredGroup) unmetSaveRequirements.push("그룹 선택");
   if (!hasRequiredFinalContent) unmetSaveRequirements.push("최종 기록의 줄거리, 감상평, 별점을 모두 입력");
-  const canConfirm = !isSaving && !isLookingUpBook && unmetSaveRequirements.length === 0 && hasRequiredBookInfo;
+  const canAutoSave = !isSaving && !isLookingUpBook && unmetSaveRequirements.length === 0 && hasRequiredBookInfo;
   const hasDraftLog = draftLogId !== null;
-  const isEditingSelectedLog = isSelectedDraftLog || (selectedLogId !== null && selectedLogId === editingLogId);
-  const isWriting = hasDraftLog || isEditingSelectedLog || hasDraftChange;
-  const bookDetailStateClassName = isEditingSelectedLog ? " writing" : "";
+  const canEditSelectedLog = selectedLogId !== null && !isSaving;
+  const isWriting = hasDraftLog || hasDraftChange || isLookingUpBook;
+  const bookDetailStateClassName = " writing";
 
   useEffect(() => {
     setDraftIsbn("");
@@ -240,7 +242,7 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
     setIsLookingUpBook(false);
     setIsbnLookupMessage("");
     setIsbnLookupHasError(false);
-    if (!isEditingSelectedLog || isSaving || !isbnLookupRequest ||
+    if (!canEditSelectedLog || isSaving || !isbnLookupRequest ||
       isbnLookupRequest.logId !== selectedLogId || isbnLookupRequest.isbn !== draftIsbn) return;
 
     const isbn = normalizeIsbn(draftIsbn);
@@ -287,11 +289,12 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
             missing.length > 0 ? `${missing.join("과 ")} 정보가 없습니다. 직접 입력해 주세요.` : "",
             edited.length > 0 ? `조회 중 수정한 ${edited.join("과 ")}는 유지했습니다.` : "",
           ].filter(Boolean).join(" "));
-        } catch {
+        } catch (error) {
           if (!isActive) return;
           setIsbnLookupHasError(true);
           setIsbnLookupMessage(controller.signal.aborted
             ? "조회 시간이 초과되었습니다. 다시 조회하거나 직접 입력해 주세요."
+            : error instanceof BookLookupError ? error.message
             : "도서 정보를 가져오지 못했습니다. 다시 조회하거나 직접 입력해 주세요.");
         } finally {
           clearTimeout(timeout);
@@ -304,7 +307,7 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
       clearTimeout(timeout);
       controller.abort();
     };
-  }, [draftIsbn, selectedLogId, isEditingSelectedLog, isSaving, isbnLookupRequest]);
+  }, [draftIsbn, selectedLogId, canEditSelectedLog, isSaving, isbnLookupRequest]);
 
   useEffect(() => {
     setDraftTitle(selectedLog?.title ?? "");
@@ -331,7 +334,7 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
     });
 
     return () => window.cancelAnimationFrame(animationFrame);
-  }, [selectedLogId, draftEntries.length, isEditingSelectedLog]);
+  }, [selectedLogId, draftEntries.length, canEditSelectedLog]);
 
   useEffect(() => {
     if (!pendingFocusEntryId) {
@@ -377,29 +380,26 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
     setReadingLogs((logs) => [...logs, newLog]);
     setSelectedLogId(newLog.id);
     setDraftLogId(newLog.id);
-    setEditingLogId(newLog.id);
     setDraftTotalPagesInput(String(newLog.totalPages));
     setDraftCurrentPageInputs({ [firstEntryId]: "0" });
     setSaveError("");
-    setSaveRequirementErrors([]);
   }
 
-  async function confirmSelectedTitle() {
+  async function saveSelectedLog() {
     if (!selectedLogId) {
       return;
     }
 
-    if (!canConfirm) {
+    if (!canAutoSave) {
       if (!isSaving) {
         setSaveError("");
-        setSaveRequirementErrors(unmetSaveRequirements);
       }
       return;
     }
 
+    setIsbnLookupRequest(null);
     setIsSaving(true);
     setSaveError("");
-    setSaveRequirementErrors([]);
 
     const nextLog = {
       id: selectedLogId,
@@ -488,7 +488,6 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
       ),
     );
     setDraftLogId((id) => (id === selectedLogId ? null : id));
-    setEditingLogId((id) => (id === selectedLogId ? null : id));
     setIsSaving(false);
   }
 
@@ -529,63 +528,6 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
   function handleEntryNoteChange(entryId: string, event: ChangeEvent<HTMLTextAreaElement>) {
     resizeTextarea(event.currentTarget);
     updateDraftEntry(entryId, { note: event.currentTarget.value });
-  }
-
-  function cancelDraftChange() {
-    if (!selectedLogId || !selectedLog) {
-      return;
-    }
-
-    setDraftIsbn("");
-    if (isSelectedDraftLog) {
-      setReadingLogs((logs) => logs.filter((log) => log.id !== selectedLogId));
-      setSelectedLogId(null);
-      setDraftLogId(null);
-      setEditingLogId(null);
-      setDraftTitle("");
-      setDraftGenre("");
-      setDraftTotalPages(300);
-      setDraftTotalPagesInput("300");
-      setDraftIsPublic(false);
-      setDraftGroupId(null);
-      setDraftEntries([]);
-      setDraftCurrentPageInputs({});
-      setDraftFinalSummary("");
-      setDraftFinalReview("");
-      setDraftFinalRating(null);
-      setDraftFavoriteScene("");
-      setDraftFavoriteSceneImage("");
-      setSaveError("");
-      setSaveRequirementErrors([]);
-      return;
-    }
-
-    setDraftTitle(selectedLog.title);
-    setDraftGenre(selectedLog.genre);
-    setDraftTotalPages(selectedLog.totalPages);
-    setDraftTotalPagesInput(String(selectedLog.totalPages));
-    setDraftIsPublic(selectedLog.isPublic);
-    setDraftGroupId(selectedLog.groupId);
-    setDraftEntries(selectedLog.entries);
-    setDraftCurrentPageInputs(getCurrentPageInputValues(selectedLog.entries));
-    setDraftFinalSummary(selectedLog.finalSummary);
-    setDraftFinalReview(selectedLog.finalReview);
-    setDraftFinalRating(selectedLog.finalRating);
-    setDraftFavoriteScene(selectedLog.favoriteScene);
-    setDraftFavoriteSceneImage(selectedLog.favoriteSceneImage ?? "");
-    setEditingLogId(null);
-    setSaveError("");
-    setSaveRequirementErrors([]);
-  }
-
-  function editSelectedLog() {
-    if (!selectedLogId) {
-      return;
-    }
-
-    setEditingLogId(selectedLogId);
-    setSaveError("");
-    setSaveRequirementErrors([]);
   }
 
   function handleFavoriteSceneImageChange(event: ChangeEvent<HTMLInputElement>) {
@@ -640,7 +582,6 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
 
     setReadingLogs((logs) => logs.filter((log) => log.id !== selectedLogId));
     setDraftLogId((id) => (id === selectedLogId ? null : id));
-    setEditingLogId((id) => (id === selectedLogId ? null : id));
     setSelectedLogId(null);
     setDraftTitle("");
     setDraftGenre("");
@@ -657,6 +598,30 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
     setDraftFavoriteSceneImage("");
     setIsSaving(false);
   }
+
+  const autoSaveKey = JSON.stringify({
+    userId, selectedLogId, draftTitle, draftGenre, draftTotalPages, draftIsPublic,
+    draftGroupId, draftEntries, draftFinalSummary, draftFinalReview, draftFinalRating,
+    draftFavoriteScene, draftFavoriteSceneImage,
+  });
+
+  useEffect(() => {
+    saveLatestDraftRef.current = saveSelectedLog;
+  });
+
+  useEffect(() => {
+    if (!canAutoSave || (!hasDraftLog && !hasDraftChange) || lastAutoSaveAttemptRef.current === autoSaveKey) return;
+
+    const timeout = setTimeout(() => {
+      lastAutoSaveAttemptRef.current = autoSaveKey;
+      void saveLatestDraftRef.current().catch(() => {
+        setIsSaving(false);
+        setSaveError("자동 저장하지 못했습니다. 연결을 확인한 뒤 내용을 수정하면 다시 저장합니다.");
+      });
+    }, 1200);
+
+    return () => clearTimeout(timeout);
+  }, [autoSaveKey, canAutoSave, hasDraftLog, hasDraftChange]);
 
   return (
     <main className="library-main" ref={libraryMainRef}>
@@ -675,7 +640,7 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
       <section className="shelf-row" aria-label="독서 기록장 목록">
         {filteredReadingLogs.map((log) => {
           const isSelected = selectedLogId === log.id;
-          const isEditing = draftLogId === log.id || editingLogId === log.id;
+          const hasUnsavedChanges = isSelected && (hasDraftLog || hasDraftChange);
           const isDimmed = selectedLogId !== null && !isSelected;
           const currentPage = log.entries.reduce((maxPage, entry) => Math.max(maxPage, entry.currentPage), 0);
           const progress = getReadingProgress(currentPage, log.totalPages);
@@ -683,11 +648,11 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
 
           return (
             <button
-              className={`shelf-book${isSelected ? " active" : ""}${isEditing ? " editing" : ""}${isDimmed ? " dimmed" : ""}`}
+              className={`shelf-book${isSelected ? " active" : ""}${hasUnsavedChanges ? " editing" : ""}${isDimmed ? " dimmed" : ""}`}
               type="button"
               key={log.id}
               style={bookStyle}
-              disabled={isWriting && !isSelected}
+              disabled={(isWriting || isSaving) && !isSelected}
               onClick={() => setSelectedLogId(log.id)}
             >
               <span className="shelf-book-title">{log.title.trim() || "책"}</span>
@@ -707,31 +672,15 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
 
       {selectedLog ? (
         <>
-          <div className="book-title-actions top-actions">
-            {isEditingSelectedLog ? (
-              <div className="book-confirm-actions">
-                <button className="button compact book-confirm-button" type="button" onClick={confirmSelectedTitle} disabled={isSaving || isLookingUpBook}>
-                  {isSaving ? "저장 중" : "확인"}
-                </button>
-                <button className="button compact book-cancel-button" type="button" onClick={cancelDraftChange} disabled={isSaving}>
-                  취소
-                </button>
-                <button className="button compact danger book-delete-button" type="button" onClick={deleteSelectedLog} disabled={isSaving}>
-                  삭제
-                </button>
-              </div>
-            ) : (
-              <button className="button compact" type="button" onClick={editSelectedLog} disabled={isSaving}>
-                수정
-              </button>
-            )}
-          </div>
+          <p className="book-save-status" role="status" aria-live="polite">
+            {isSaving ? "저장 중…" : hasDraftLog || hasDraftChange ? "저장하지 않은 변경 사항이 있습니다." : "자동 저장됨"}
+          </p>
           <div className="book-options-row">
             <label className="public-toggle">
               <input
                 type="checkbox"
                 checked={groups.length > 0 ? false : draftIsPublic}
-                disabled={!isEditingSelectedLog || groups.length > 0}
+                disabled={!canEditSelectedLog || groups.length > 0}
                 onChange={(event) => setDraftIsPublic(event.target.checked)}
               />
               <span>{groups.length > 0 ? "그룹 기록은 그룹방에만 표시" : "검색에 공개"}</span>
@@ -753,13 +702,13 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
                   onKeyDown={(event) => {
                     if (event.key === "Enter" && !event.nativeEvent.isComposing) {
                       event.preventDefault();
-                      if (selectedLogId && isEditingSelectedLog && !isSaving && !isLookingUpBook) {
+                      if (selectedLogId && canEditSelectedLog && !isSaving && !isLookingUpBook) {
                         setIsbnLookupRequest({ isbn: draftIsbn, logId: selectedLogId });
                       }
                     }
                   }}
-                  readOnly={!isEditingSelectedLog}
-                  disabled={!isEditingSelectedLog || isSaving}
+                  readOnly={!canEditSelectedLog}
+                  disabled={!canEditSelectedLog || isSaving}
                 />
               </label>
             </div>
@@ -767,6 +716,7 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
           <p id="isbn-lookup-status" className={`isbn-lookup-status${isbnLookupHasError ? " error" : ""}`} role="status" aria-live="polite">
             {isbnLookupMessage}
           </p>
+          <BookDataSource />
           {groups.length > 0 ? (
             <label className="public-toggle">
               <span>그룹 <span className="required-mark" aria-hidden="true">*</span></span>
@@ -775,18 +725,18 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
                 aria-required="true"
                 required
                 value={draftGroupId ?? ""}
-                disabled={!isEditingSelectedLog}
+                disabled={!canEditSelectedLog}
                 onChange={(event) => setDraftGroupId(event.target.value || null)}
               >
                 {groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
               </select>
             </label>
           ) : null}
-          {saveRequirementErrors.length > 0 ? (
+          {(hasDraftLog || hasDraftChange) && unmetSaveRequirements.length > 0 ? (
             <div className="save-requirement-alert" role="alert">
-              <strong>저장 전 확인해 주세요</strong>
+              <strong>자동 저장하려면 다음 항목을 입력해 주세요</strong>
               <ul>
-                {saveRequirementErrors.map((requirement) => <li key={requirement}>{requirement}</li>)}
+                {unmetSaveRequirements.map((requirement) => <li key={requirement}>{requirement}</li>)}
               </ul>
             </div>
           ) : null}
@@ -802,7 +752,7 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
                   value={draftTitle}
                   onChange={(event) => setDraftTitle(event.target.value)}
                   placeholder="책 제목을 입력하세요"
-                  readOnly={!isEditingSelectedLog}
+                  readOnly={!canEditSelectedLog}
                 />
               </label>
             </div>
@@ -814,7 +764,7 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
                 onChange={(event) => setDraftGenre(event.target.value)}
                 placeholder="예: 소설, 에세이"
                 maxLength={100}
-                readOnly={!isEditingSelectedLog}
+                readOnly={!canEditSelectedLog}
               />
               <small className={hasValidGenres ? "book-genre-help" : "book-genre-help error"}>쉼표로 구분해 최대 5개까지 입력할 수 있습니다.</small>
             </label>
@@ -829,7 +779,7 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
                       type="date"
                       required
                       value={entry.date}
-                      disabled={!isEditingSelectedLog}
+                      disabled={!canEditSelectedLog}
                       onChange={(event) => updateDraftEntry(entry.id, { date: event.target.value })}
                     />
                   </label>
@@ -841,7 +791,7 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
                       min="0"
                       max={draftTotalPages}
                       value={draftCurrentPageInputs[entry.id] ?? String(entry.currentPage)}
-                      disabled={!isEditingSelectedLog}
+                      disabled={!canEditSelectedLog}
                       onChange={(event) => {
                         const inputValue = event.target.value;
                         const currentPage = Math.min(parsePageValue(inputValue), draftTotalPages);
@@ -860,7 +810,7 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
                         min="1"
                         required
                         value={draftTotalPagesInput}
-                        disabled={!isEditingSelectedLog}
+                        disabled={!canEditSelectedLog}
                         onChange={(event) => {
                           const inputValue = event.target.value;
                           const totalPages = parsePageValue(inputValue);
@@ -894,9 +844,9 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
                     onInput={(event) => resizeTextarea(event.currentTarget)}
                     onChange={(event) => handleEntryNoteChange(entry.id, event)}
                     placeholder="책을 다 읽고 기억나는 내용과 그때의 감상평을 적어보세요."
-                    readOnly={!isEditingSelectedLog}
+                    readOnly={!canEditSelectedLog}
                   />
-                  {isEditingSelectedLog ? (
+                  {canEditSelectedLog ? (
                     <div className="book-entry-actions">
                       <button className="delete-log-button entry-delete" type="button" onClick={() => deleteDraftEntry(entry.id)} disabled={isSaving}>
                         단락 삭제
@@ -908,7 +858,7 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
             ))}
           </section>
           <div className="book-add-entry-actions">
-            <button className="button compact secondary" type="button" aria-label="다른 날짜 독서 기록 추가" onClick={addDraftEntry} disabled={!isEditingSelectedLog}>
+            <button className="button compact secondary" type="button" aria-label="다른 날짜 독서 기록 추가" onClick={addDraftEntry} disabled={!canEditSelectedLog}>
               +
             </button>
           </div>
@@ -924,7 +874,7 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
                 onInput={(event) => resizeTextarea(event.currentTarget)}
                 onChange={(event) => setDraftFinalSummary(event.target.value)}
                 placeholder="책을 다 읽고 기억에 남는 내용을 간단히 요약해 보세요."
-                readOnly={!isEditingSelectedLog}
+                readOnly={!canEditSelectedLog}
               />
             </label>
             <label className="book-final-field">
@@ -937,7 +887,7 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
                 onInput={(event) => resizeTextarea(event.currentTarget)}
                 onChange={(event) => setDraftFinalReview(event.target.value)}
                 placeholder="책을 다 읽은 뒤 느낀 점과 감상평을 적어보세요."
-                readOnly={!isEditingSelectedLog}
+                readOnly={!canEditSelectedLog}
               />
             </label>
             <div className="book-final-field">
@@ -946,16 +896,16 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
                 <div
                   className="final-rating-stars"
                   role="slider"
-                  tabIndex={isEditingSelectedLog ? 0 : -1}
+                  tabIndex={canEditSelectedLog ? 0 : -1}
                   aria-labelledby="final-rating-label"
                   aria-valuemin={0}
                   aria-valuemax={5}
                   aria-valuenow={draftFinalRating ?? 0}
                   aria-valuetext={draftFinalRating === null ? "별점 없음" : `${draftFinalRating}점`}
                   aria-required={hasAnyFinalContent}
-                  aria-disabled={!isEditingSelectedLog}
+                  aria-disabled={!canEditSelectedLog}
                   onPointerDown={(event) => {
-                    if (!isEditingSelectedLog) return;
+                    if (!canEditSelectedLog) return;
                     event.preventDefault();
                     event.currentTarget.setPointerCapture(event.pointerId);
                     setDraftFinalRating(getRatingFromPointer(event.clientX, event.currentTarget));
@@ -966,7 +916,7 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
                     }
                   }}
                   onKeyDown={(event) => {
-                    if (!isEditingSelectedLog) return;
+                    if (!canEditSelectedLog) return;
                     if (event.key === "ArrowRight" || event.key === "ArrowUp") {
                       event.preventDefault();
                       setDraftFinalRating((rating) => Math.min(5, (rating ?? 0) + 0.5));
@@ -991,7 +941,7 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
                   ))}
                 </div>
                 <output className="final-rating-value">{draftFinalRating === null ? "선택 안 함" : `${draftFinalRating}/5`}</output>
-                {draftFinalRating !== null && isEditingSelectedLog ? (
+                {draftFinalRating !== null && canEditSelectedLog ? (
                   <button className="final-rating-clear" type="button" onClick={() => setDraftFinalRating(null)}>
                     지우기
                   </button>
@@ -1006,21 +956,26 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
                 onInput={(event) => resizeTextarea(event.currentTarget)}
                 onChange={(event) => setDraftFavoriteScene(event.target.value)}
                 placeholder="가장 좋았던 글귀나 장면을 적거나, 이미지를 올려보세요."
-                readOnly={!isEditingSelectedLog}
+                readOnly={!canEditSelectedLog}
               />
               <span className="book-image-upload">
-                <input aria-label="가장 좋아하는 장면 이미지" type="file" accept="image/*" onChange={handleFavoriteSceneImageChange} disabled={!isEditingSelectedLog} />
+                <input aria-label="가장 좋아하는 장면 이미지" type="file" accept="image/*" onChange={handleFavoriteSceneImageChange} disabled={!canEditSelectedLog} />
               </span>
               {draftFavoriteSceneImage ? (
                 <div className="book-image-preview">
                   <img src={draftFavoriteSceneImage} alt="가장 좋아하는 장면 미리보기" />
-                  <button className="button compact secondary" type="button" onClick={() => setDraftFavoriteSceneImage("")} disabled={!isEditingSelectedLog}>
+                  <button className="button compact secondary" type="button" onClick={() => setDraftFavoriteSceneImage("")} disabled={!canEditSelectedLog}>
                     이미지 삭제
                   </button>
                 </div>
               ) : null}
             </label>
           </section>
+          <div className="book-delete-actions">
+            <button className="button compact danger book-delete-button" type="button" onClick={deleteSelectedLog} disabled={isSaving}>
+              삭제
+            </button>
+          </div>
         </>
       ) : null}
     </main>

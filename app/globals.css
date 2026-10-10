@@ -709,14 +709,6 @@ h1 {
   color: var(--reading-text);
 }
 
-.book-title-actions {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 14px 18px 0;
-}
-
 .book-options-row {
   display: flex;
   align-items: center;
@@ -724,6 +716,13 @@ h1 {
   flex-wrap: wrap;
   gap: 8px 16px;
   margin-top: 8px;
+}
+
+.book-save-status {
+  margin: 8px 0;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: right;
 }
 
 .book-options-row .public-toggle {
@@ -790,17 +789,38 @@ h1 {
   color: var(--rose);
 }
 
+.book-data-source {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin: 10px 0 0;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.book-data-source a {
+  color: var(--accent-dark);
+  font-weight: 700;
+  text-underline-offset: 3px;
+}
+
 .book-add-entry-actions {
   display: flex;
   justify-content: center;
   padding: 14px 18px 0;
 }
 
-.book-confirm-actions {
+.book-delete-actions {
   display: flex;
-  flex-wrap: wrap;
   justify-content: center;
-  gap: 8px;
+  margin-top: 24px;
 }
 
 .book-entry + .book-entry {
@@ -1162,43 +1182,6 @@ h1 {
 
 .button.danger.book-delete-button:not(:disabled):active {
   background: color-mix(in srgb, var(--rose) 19%, var(--surface));
-}
-
-.button.book-confirm-button {
-  background: #79b88b;
-  border-color: #609d73;
-  color: #000;
-}
-
-.button.book-confirm-button:not(:disabled):hover {
-  background: #69a97d;
-  border-color: #548d66;
-}
-
-.button.book-confirm-button:not(:disabled):active {
-  background: #5b966d;
-  border-color: #477d59;
-}
-
-.button.book-confirm-button:disabled {
-  color: #000;
-  opacity: 1;
-}
-
-.button.book-cancel-button {
-  background: #111;
-  border-color: #111;
-  color: #fff;
-}
-
-.button.book-cancel-button:not(:disabled):hover {
-  background: #292929;
-  border-color: #292929;
-}
-
-.button.book-cancel-button:not(:disabled):active {
-  background: #000;
-  border-color: #000;
 }
 
 .button.compact {
@@ -2162,11 +2145,7 @@ h1 {
     padding: 0;
   }
 
-  .book-title-actions {
-    padding: 10px 12px 0;
-  }
-
-  .book-add-entry-actions {
+    .book-add-entry-actions {
     padding: 10px 12px 0;
   }
 
