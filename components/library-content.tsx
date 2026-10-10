@@ -759,7 +759,7 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
                     }
                   }}
                   readOnly={!isEditingSelectedLog}
-                  disabled={isSaving}
+                  disabled={!isEditingSelectedLog || isSaving}
                 />
               </label>
             </div>
