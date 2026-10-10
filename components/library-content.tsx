@@ -3,6 +3,7 @@
 import type { CSSProperties, ChangeEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/browser";
+import { fetchBookByIsbn, isValidIsbn, normalizeIsbn } from "@/lib/open-library";
 
 export type ReadingLog = {
   id: string;
@@ -153,6 +154,11 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
   const [draftLogId, setDraftLogId] = useState<string | null>(null);
   const [editingLogId, setEditingLogId] = useState<string | null>(null);
   const [draftTitle, setDraftTitle] = useState("");
+  const [draftIsbn, setDraftIsbn] = useState("");
+  const [isLookingUpBook, setIsLookingUpBook] = useState(false);
+  const [isbnLookupMessage, setIsbnLookupMessage] = useState("");
+  const [isbnLookupHasError, setIsbnLookupHasError] = useState(false);
+  const [isbnLookupRequest, setIsbnLookupRequest] = useState<{ isbn: string; logId: string } | null>(null);
   const [draftGenre, setDraftGenre] = useState("");
   const [draftTotalPages, setDraftTotalPages] = useState(300);
   const [draftTotalPagesInput, setDraftTotalPagesInput] = useState("300");
@@ -172,6 +178,8 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
   const [pendingFocusEntryId, setPendingFocusEntryId] = useState<string | null>(null);
   const libraryMainRef = useRef<HTMLElement | null>(null);
   const entryTextareaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
+  const bookInfoRef = useRef({ title: draftTitle, totalPagesInput: draftTotalPagesInput });
+  bookInfoRef.current = { title: draftTitle, totalPagesInput: draftTotalPagesInput };
   const selectedLog = readingLogs.find((log) => log.id === selectedLogId);
   const normalizedSearchQuery = searchQuery.trim().toLocaleLowerCase();
   const filteredReadingLogs = readingLogs.filter((log) => matchesSearch(log, normalizedSearchQuery));
@@ -215,11 +223,88 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
   if (!hasValidEntryDates) unmetSaveRequirements.push("모든 독서 날짜 입력");
   if (!hasRequiredGroup) unmetSaveRequirements.push("그룹 선택");
   if (!hasRequiredFinalContent) unmetSaveRequirements.push("최종 기록의 줄거리, 감상평, 별점을 모두 입력");
-  const canConfirm = !isSaving && unmetSaveRequirements.length === 0 && hasRequiredBookInfo;
+  const canConfirm = !isSaving && !isLookingUpBook && unmetSaveRequirements.length === 0 && hasRequiredBookInfo;
   const hasDraftLog = draftLogId !== null;
   const isEditingSelectedLog = isSelectedDraftLog || (selectedLogId !== null && selectedLogId === editingLogId);
   const isWriting = hasDraftLog || isEditingSelectedLog || hasDraftChange;
   const bookDetailStateClassName = isEditingSelectedLog ? " writing" : "";
+
+  useEffect(() => {
+    setDraftIsbn("");
+    setIsbnLookupRequest(null);
+    setIsbnLookupMessage("");
+    setIsbnLookupHasError(false);
+  }, [selectedLogId]);
+
+  useEffect(() => {
+    setIsLookingUpBook(false);
+    setIsbnLookupMessage("");
+    setIsbnLookupHasError(false);
+    if (!isEditingSelectedLog || isSaving || !isbnLookupRequest ||
+      isbnLookupRequest.logId !== selectedLogId || isbnLookupRequest.isbn !== draftIsbn) return;
+
+    const isbn = normalizeIsbn(draftIsbn);
+    if (!isValidIsbn(isbn)) {
+      setIsbnLookupMessage("유효한 ISBN 10자리 또는 13자리를 입력해 주세요.");
+      setIsbnLookupHasError(true);
+      return;
+    }
+
+    const controller = new AbortController();
+    let isActive = true;
+    setIsLookingUpBook(true);
+    setIsbnLookupMessage("도서 정보를 찾고 있습니다.");
+      const originalInfo = { ...bookInfoRef.current };
+      const timeout = setTimeout(() => controller.abort(), 15000);
+      void (async () => {
+        try {
+          const book = await fetchBookByIsbn(isbn, controller.signal);
+          if (!isActive) return;
+          if (!book) {
+            setIsbnLookupHasError(true);
+            setIsbnLookupMessage("해당 ISBN의 도서를 찾지 못했습니다. 제목과 전체 쪽수를 직접 입력해 주세요.");
+            return;
+          }
+
+          const updated: string[] = [];
+          const missing: string[] = [];
+          const edited: string[] = [];
+          if (!book.title) missing.push("책 제목");
+          else if (bookInfoRef.current.title !== originalInfo.title) edited.push("책 제목");
+          else {
+            setDraftTitle(book.title);
+            updated.push("책 제목");
+          }
+          if (book.totalPages === null) missing.push("전체 쪽수");
+          else if (bookInfoRef.current.totalPagesInput !== originalInfo.totalPagesInput) edited.push("전체 쪽수");
+          else {
+            setDraftTotalPages(book.totalPages);
+            setDraftTotalPagesInput(String(book.totalPages));
+            updated.push("전체 쪽수");
+          }
+          setIsbnLookupMessage([
+            updated.length > 0 ? `${updated.join("과 ")}를 불러왔습니다.` : "",
+            missing.length > 0 ? `${missing.join("과 ")} 정보가 없습니다. 직접 입력해 주세요.` : "",
+            edited.length > 0 ? `조회 중 수정한 ${edited.join("과 ")}는 유지했습니다.` : "",
+          ].filter(Boolean).join(" "));
+        } catch {
+          if (!isActive) return;
+          setIsbnLookupHasError(true);
+          setIsbnLookupMessage(controller.signal.aborted
+            ? "조회 시간이 초과되었습니다. 다시 조회하거나 직접 입력해 주세요."
+            : "도서 정보를 가져오지 못했습니다. 다시 조회하거나 직접 입력해 주세요.");
+        } finally {
+          clearTimeout(timeout);
+          if (isActive) setIsLookingUpBook(false);
+        }
+      })();
+
+    return () => {
+      isActive = false;
+      clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [draftIsbn, selectedLogId, isEditingSelectedLog, isSaving, isbnLookupRequest]);
 
   useEffect(() => {
     setDraftTitle(selectedLog?.title ?? "");
@@ -451,6 +536,7 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
       return;
     }
 
+    setDraftIsbn("");
     if (isSelectedDraftLog) {
       setReadingLogs((logs) => logs.filter((log) => log.id !== selectedLogId));
       setSelectedLogId(null);
@@ -624,7 +710,7 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
           <div className="book-title-actions top-actions">
             {isEditingSelectedLog ? (
               <div className="book-confirm-actions">
-                <button className="button compact book-confirm-button" type="button" onClick={confirmSelectedTitle} disabled={isSaving}>
+                <button className="button compact book-confirm-button" type="button" onClick={confirmSelectedTitle} disabled={isSaving || isLookingUpBook}>
                   {isSaving ? "저장 중" : "확인"}
                 </button>
                 <button className="button compact book-cancel-button" type="button" onClick={cancelDraftChange} disabled={isSaving}>
@@ -640,15 +726,47 @@ export function LibraryContent({ initialReadingLogs = [], userId, groups = [] }:
               </button>
             )}
           </div>
-          <label className="public-toggle">
-            <input
-              type="checkbox"
-              checked={groups.length > 0 ? false : draftIsPublic}
-              disabled={!isEditingSelectedLog || groups.length > 0}
-              onChange={(event) => setDraftIsPublic(event.target.checked)}
-            />
-            <span>{groups.length > 0 ? "그룹 기록은 그룹방에만 표시" : "검색에 공개"}</span>
-          </label>
+          <div className="book-options-row">
+            <label className="public-toggle">
+              <input
+                type="checkbox"
+                checked={groups.length > 0 ? false : draftIsPublic}
+                disabled={!isEditingSelectedLog || groups.length > 0}
+                onChange={(event) => setDraftIsPublic(event.target.checked)}
+              />
+              <span>{groups.length > 0 ? "그룹 기록은 그룹방에만 표시" : "검색에 공개"}</span>
+            </label>
+            <div className="book-isbn-controls">
+              <label className="book-isbn-field">
+                <span>ISBN</span>
+                <input
+                  type="text"
+                  value={draftIsbn}
+                  onChange={(event) => {
+                    setIsbnLookupRequest(null);
+                    setDraftIsbn(event.target.value);
+                  }}
+                  placeholder="ISBN 입력 후 Enter"
+                  autoComplete="off"
+                  spellCheck={false}
+                  aria-describedby="isbn-lookup-status"
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                      event.preventDefault();
+                      if (selectedLogId && isEditingSelectedLog && !isSaving && !isLookingUpBook) {
+                        setIsbnLookupRequest({ isbn: draftIsbn, logId: selectedLogId });
+                      }
+                    }
+                  }}
+                  readOnly={!isEditingSelectedLog}
+                  disabled={isSaving}
+                />
+              </label>
+            </div>
+          </div>
+          <p id="isbn-lookup-status" className={`isbn-lookup-status${isbnLookupHasError ? " error" : ""}`} role="status" aria-live="polite">
+            {isbnLookupMessage}
+          </p>
           {groups.length > 0 ? (
             <label className="public-toggle">
               <span>그룹 <span className="required-mark" aria-hidden="true">*</span></span>

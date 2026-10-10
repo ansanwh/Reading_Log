@@ -262,7 +262,8 @@ h1 {
 }
 
 .library-main {
-  width: min(960px, calc(100% - 36px));
+  width: min(1120px, calc(100% - 36px));
+  min-width: 0;
   margin: 0 auto;
   padding: 28px 0 64px;
 }
@@ -490,9 +491,8 @@ h1 {
 
 .shelf-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
-  overflow-x: auto;
-  overflow-y: hidden;
   padding: 18px 0;
   border-top: 2px solid var(--line);
   border-bottom: 2px solid var(--line);
@@ -500,6 +500,8 @@ h1 {
 
 .shelf-book {
   flex: 0 0 var(--book-width, 104px);
+  min-width: 0;
+  max-width: 100%;
   min-height: 86px;
   border: 1px solid var(--line);
   border-radius: 8px 8px 4px 4px;
@@ -624,6 +626,7 @@ h1 {
   font-size: 22px;
   font-weight: 700;
   text-align: center;
+  transform: translateX(-10px);
   outline: none;
   padding: 0;
 }
@@ -714,6 +717,79 @@ h1 {
   padding: 14px 18px 0;
 }
 
+.book-options-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 8px;
+}
+
+.book-options-row .public-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.book-isbn-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.book-isbn-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.book-isbn-field input {
+  width: 220px;
+  min-width: 0;
+  min-height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-strong);
+  color: var(--ink);
+  padding: 0 8px;
+}
+
+.book-isbn-field input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.book-isbn-field input:read-only {
+  opacity: 0.6;
+}
+
+.book-options-row .public-toggle:has(input:disabled) {
+  opacity: 0.6;
+}
+
+.isbn-lookup-status {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.isbn-lookup-status:empty {
+  margin: 0;
+}
+
+.isbn-lookup-status.error {
+  color: var(--rose);
+}
+
 .book-add-entry-actions {
   display: flex;
   justify-content: center;
@@ -722,6 +798,7 @@ h1 {
 
 .book-confirm-actions {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
   gap: 8px;
 }
@@ -2002,7 +2079,6 @@ h1 {
   }
 
   .library-main {
-    width: min(100% - 20px, 520px);
     padding: 12px 0 18px;
   }
 
@@ -2096,12 +2172,27 @@ h1 {
 
   .book-meta-row {
     min-height: 34px;
-    padding: 0 12px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+    padding: 8px 12px;
     font-size: 13px;
+  }
+
+  .book-genre-row {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 12px;
+  }
+
+  .book-genre-help {
+    flex-basis: 100%;
   }
 
   .book-date-field,
   .book-page-field {
+    min-width: 0;
+    justify-content: space-between;
     gap: 6px;
   }
 
