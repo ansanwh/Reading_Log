@@ -17,7 +17,7 @@
 npm install
 ```
 
-2. `.env.example`을 참고해 `.env.local`을 만듭니다.
+2. 아래 예시를 참고해 `.env.local`을 만듭니다.
 
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=...
